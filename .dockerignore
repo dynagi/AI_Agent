@@ -1,0 +1,17 @@
+# keeps secrets, personal files and build junk out of the image (repo-root builds: Dockerfile.render)
+**/.env
+**/.env.*
+!**/.env.example
+**/node_modules
+**/.venv
+**/__pycache__
+**/.pytest_cache
+.git
+my_invoices
+release
+synthetic_data
+aura-web
+ai-service/tests
+ai-service/app/data
+**/*.jks
+**/keystore.properties

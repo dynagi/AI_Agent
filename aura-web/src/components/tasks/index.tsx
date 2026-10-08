@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { CalendarDays, Flag, Pencil, Trash2, Copy, CalendarPlus, SquarePen } from 'lucide-react';
 import { CategoryBadge, MoreMenu } from '../ui';
 import { FuturisticModal, NeonButton, HudInput } from '../aura';
-import { allCategories, categoryTone, priorityTone, type Priority, type TaskItem } from '../../data/mockTasks';
+import { allCategories, categoryTone, priorityTone, type Priority, type TaskItem } from '../../data/tasks';
 
 export function formatTaskWhen(t: TaskItem) {
   return t.start ? (t.end ? `${t.start} – ${t.end}` : t.start) : 'Anytime';

@@ -1,9 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { CalendarDays, CalendarRange, Calendar as CalIcon, ListChecks, ChevronLeft, ChevronRight, Plus, Sparkles, PlusCircle, Clock, RefreshCw, ChevronDown } from 'lucide-react';
-import { Hud, IconBox, NeonButton, NeonTabs, PageHero, FuturisticModal, DemoFlag, toast, toneHex } from '../components/aura';
-import { AICommandPanel, confirmActions, type AIReply } from '../components/ai';
+import { Hud, IconBox, NeonButton, NeonTabs, PageHero, FuturisticModal, SyncStatus, toast, toneHex } from '../components/aura';
+import { AICommandPanel, confirmActions, domainAsk, type AIReply } from '../components/ai';
+import { googleEventsStore, googleStatusStore, syncGoogleCalendar } from '../services/googleCalendar';
+import { signInWithGoogle } from '../services/auth';
 import { CalendarGrid, MiniCalendar, EventModal, EventChip, DOW, toISO } from '../components/calendar';
-import { kindMeta, DEMO_TODAY, type CalendarEvent } from '../data/mockEvents';
+import { kindMeta, todayISO, type CalendarEvent } from '../data/events';
 import { eventsStore } from '../state/stores';
 import { uid } from '../state/store';
 import { usePageSearch, matches } from '../state/search';
@@ -17,14 +19,18 @@ const sortKey = (e: CalendarEvent) => `${e.date}${String(toMin(e.start) + 1).pad
 interface ModalState { event?: CalendarEvent; date?: string; preset?: Partial<CalendarEvent> }
 
 export default function Calendar() {
-  const events = eventsStore.use();
+  const TODAY = todayISO();
+  const localEvents = eventsStore.use();
+  const googleEvents = googleEventsStore.use();
+  const google = googleStatusStore.use();
+  const events = useMemo(() => [...localEvents, ...googleEvents], [localEvents, googleEvents]);
+  useEffect(() => { void syncGoogleCalendar(); }, []);
   const q = usePageSearch();
   const [view, setView] = useState<View>('Month');
-  const [cursor, setCursor] = useState(() => parseISO(DEMO_TODAY));
-  const [sel, setSel] = useState(DEMO_TODAY);
+  const [cursor, setCursor] = useState(() => parseISO(TODAY));
+  const [sel, setSel] = useState(TODAY);
   const [modal, setModal] = useState<ModalState | null>(null);
   const [ai, setAi] = useState(false);
-  const [syncing, setSyncing] = useState(false);
   const [monthMenu, setMonthMenu] = useState(false);
 
   const y = cursor.getFullYear();
@@ -39,7 +45,7 @@ export default function Calendar() {
     setCursor(d);
     if (view === 'Week' || view === 'Day') setSel(toISO(d.getFullYear(), d.getMonth(), d.getDate()));
   };
-  const goToday = () => { setCursor(parseISO(DEMO_TODAY)); setSel(DEMO_TODAY); };
+  const goToday = () => { setCursor(parseISO(TODAY)); setSel(TODAY); };
   const pickDay = (iso: string) => { setSel(iso); const d = parseISO(iso); if (d.getMonth() !== m || d.getFullYear() !== y) setCursor(d); };
   const shiftMonth = (dir: number) => { const d = new Date(y, m + dir, 1); setCursor(d); };
 
@@ -55,48 +61,28 @@ export default function Calendar() {
     s.setDate(s.getDate() - s.getDay());
     return Array.from({ length: 7 }, (_, i) => { const d = new Date(s); d.setDate(d.getDate() + i); return toISO(d.getFullYear(), d.getMonth(), d.getDate()); });
   }, [sel]);
-  const upcoming = shown.filter((e) => e.date >= DEMO_TODAY).sort((a, b) => sortKey(a).localeCompare(sortKey(b))).slice(0, 4);
+  const upcoming = shown.filter((e) => e.date >= TODAY).sort((a, b) => sortKey(a).localeCompare(sortKey(b))).slice(0, 4);
   const agenda = shown.filter((e) => { const d = parseISO(e.date); return d.getMonth() === m && d.getFullYear() === y; }).sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
 
-  const aiHandler = (p: string): AIReply => {
-    const t = p.toLowerCase();
-    if (/focus/.test(t)) {
-      const free = ['2025-10-15', '2025-10-17', '2025-10-21'].find((d) => !events.some((e) => e.date === d)) ?? '2025-10-22';
+  const chat = domainAsk('calendar', () => JSON.stringify({ today: TODAY, selectedDay: sel, events: events.filter((e) => e.date >= TODAY).slice(0, 60).map((e) => ({ title: e.title, date: e.date, start: e.start, end: e.end })) }));
+  const aiHandler = async (p: string): Promise<AIReply> => {
+    if (/focus/i.test(p)) {
+      const free = Array.from({ length: 14 }, (_, i) => { const d = parseISO(TODAY); d.setDate(d.getDate() + i + 1); return toISO(d.getFullYear(), d.getMonth(), d.getDate()); }).find((d) => !events.some((e) => e.date === d));
+      if (!free) return { text: 'Every day in the next two weeks already has events, so I could not find a clear day for a focus block.' };
       return {
-        text: `I found a free 2-hour window on ${fmtDay(free, { weekday: 'long', month: 'short', day: 'numeric' })}, 9:00–11:00 AM, with no meetings nearby.`,
+        text: `${fmtDay(free, { weekday: 'long', month: 'short', day: 'numeric' })} has nothing scheduled, so 9:00–11:00 AM works for a focus block.`,
         preview: [`Add “Focus Time” · ${fmtDay(free)} · 9:00 AM – 11:00 AM`],
         actions: confirmActions('Add focus block', () => { eventsStore.set((es) => [...es, { id: uid('ev'), title: 'Focus Time', date: free, start: '9:00 AM', end: '11:00 AM', kind: 'focus' }]); return `Focus Time added on ${fmtDay(free)}.`; }),
       };
     }
-    if (/gym|workout|move/.test(t)) {
-      const gym = events.find((e) => e.kind === 'fitness');
-      if (!gym) return { text: 'I could not find a workout on your calendar.' };
-      return {
-        text: `Your ${gym.title} is at ${gym.start} on ${fmtDay(gym.date)}. I can move it to 7:00 PM so the morning stays free for deep work.`,
-        preview: [`${gym.title}: ${gym.start} → 7:00 PM (${fmtDay(gym.date)})`],
-        actions: confirmActions('Move workout', () => { eventsStore.set((es) => es.map((e) => (e.id === gym.id ? { ...e, start: '7:00 PM', end: '8:00 PM' } : e))); return `${gym.title} moved to 7:00 PM.`; }),
-      };
-    }
-    const dayEvents = events.filter((e) => e.date === sel).sort((a, b) => toMin(a.start) - toMin(b.start));
-    const list = dayEvents.length ? dayEvents.map((e) => `${e.start} ${e.title}`).join(', ') : 'nothing scheduled yet';
-    return {
-      text: `${fmtDay(sel, { weekday: 'long', month: 'long', day: 'numeric' })}: ${list}. I suggest a 45-minute prep block before your first commitment and a proper lunch break. Would you like me to optimize your schedule?`,
-      preview: ['Add “Prep block” · 9:30 AM – 10:15 AM', 'Add “Lunch break” · 1:00 PM – 1:45 PM'],
-      actions: [
-        { label: 'Optimize My Day', variant: 'primary', run: () => {
-          eventsStore.set((es) => [...es, { id: uid('ev'), title: 'Prep block', date: sel, start: '9:30 AM', end: '10:15 AM', kind: 'focus' }, { id: uid('ev'), title: 'Lunch break', date: sel, start: '1:00 PM', end: '1:45 PM', kind: 'personal' }]);
-          return 'Added a prep block and a lunch break to your day.';
-        } },
-        { label: 'Keep Current Schedule', run: () => 'Okay — your schedule is unchanged.' },
-      ],
-    };
+    return chat(p);
   };
 
   const quick: [typeof Clock, string, () => void][] = [
     [PlusCircle, 'Add Event', () => setModal({ date: sel })],
     [Clock, 'Focus Time', () => setModal({ date: sel, preset: { title: 'Focus Time', kind: 'focus', start: '9:00 AM', end: '11:00 AM' } })],
     [Sparkles, 'AI Plan My Day', () => setAi(true)],
-    [RefreshCw, syncing ? 'Syncing…' : 'Sync Calendar', () => { setSyncing(true); setTimeout(() => { setSyncing(false); toast('Sync checked: Google Calendar is not connected (demo). Connect it in Integrations.'); }, 1200); }],
+    [RefreshCw, google.state === 'syncing' ? 'Syncing…' : 'Sync Calendar', () => { void syncGoogleCalendar().then(() => { const st = googleStatusStore.get().state; toast(st === 'connected' ? 'Google Calendar synced.' : 'Google Calendar is not connected — use “Connect Google Calendar”.'); }); }],
   ];
 
   return (
@@ -131,7 +117,7 @@ export default function Calendar() {
           </div>
 
           {view === 'Month' && (
-            <CalendarGrid y={y} m={m} events={shown} selected={sel} today={DEMO_TODAY}
+            <CalendarGrid y={y} m={m} events={shown} selected={sel} today={TODAY}
               onSelectDay={(iso) => (iso === sel ? setModal({ date: iso }) : pickDay(iso))} onOpenEvent={(e) => setModal({ event: e })} />
           )}
 
@@ -139,7 +125,7 @@ export default function Calendar() {
             <Hud>
               <div className="grid" style={{ gridTemplateColumns: 'repeat(7, minmax(96px,1fr))', gap: 8, overflowX: 'auto' }}>
                 {weekDays.map((iso, i) => (
-                  <div key={iso} className="tile stack" style={{ minHeight: 320, gap: 6, padding: 8, ['--bd' as string]: iso === DEMO_TODAY ? 'var(--aura-primary-bright)' : undefined }}>
+                  <div key={iso} className="tile stack" style={{ minHeight: 320, gap: 6, padding: 8, ['--bd' as string]: iso === TODAY ? 'var(--aura-primary-bright)' : undefined }}>
                     <button onClick={() => setModal({ date: iso })} style={{ background: 'none', border: 0, textAlign: 'left', padding: 0 }} aria-label={`Add event on ${fmtDay(iso)}`}>
                       <div className="t-sub">{DOW[i]}</div><b style={{ fontSize: 18 }}>{parseISO(iso).getDate()}</b>
                     </button>
@@ -189,7 +175,14 @@ export default function Calendar() {
               </div>
             </Hud>
           )}
-          <DemoFlag label="DEMO CALENDAR — connect Google Calendar to sync" />
+          <SyncStatus stores={[eventsStore]} />
+          {google.state === 'not_connected' && (
+            <div className="tag amber" style={{ padding: '8px 12px', whiteSpace: 'normal', display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span style={{ flex: 1 }}>Google Calendar isn't connected. Sign in with Google to show your real events here.</span>
+              <button className="btn sm" onClick={() => void signInWithGoogle().catch((e) => toast(e instanceof Error ? e.message : 'Google sign-in failed.'))}>Connect Google Calendar</button>
+            </div>
+          )}
+          {google.state === 'error' && <div className="tag red" role="alert" style={{ padding: '8px 12px', whiteSpace: 'normal' }}>{google.message}</div>}
         </div>
 
         <div className="rail">
@@ -201,7 +194,7 @@ export default function Calendar() {
                 return (
                   <button key={e.id} className="li" style={{ background: 'none', border: 0, width: '100%', textAlign: 'left' }} onClick={() => setModal({ event: e })}>
                     <span className="dot" style={{ width: 14, height: 14, background: c, color: c }} />
-                    <div className="grow"><div className="t-title">{e.title}</div><div className="t-sub">{e.date === DEMO_TODAY ? 'Today' : fmtDay(e.date)}, {e.start}{e.end ? ` – ${e.end}` : ''}</div></div>
+                    <div className="grow"><div className="t-title">{e.title}</div><div className="t-sub">{e.date === TODAY ? 'Today' : fmtDay(e.date)}, {e.start}{e.end ? ` – ${e.end}` : ''}</div></div>
                   </button>
                 );
               })}
@@ -230,7 +223,7 @@ export default function Calendar() {
         <FuturisticModal title="AI Schedule" icon={Sparkles} tone="violet" onClose={() => setAi(false)}>
           <AICommandPanel title="Plan with AURA" initialOpen
             description={`Working on ${fmtDay(sel, { weekday: 'long', month: 'long', day: 'numeric' })}. Changes are only made after you confirm.`}
-            prompts={['Plan my day', 'Find a 2-hour focus block this week', 'Move my workout to the evening']} onAsk={aiHandler} placeholder="e.g. Plan my day" />
+            prompts={['Plan my day', 'Find a 2-hour focus block this week', 'What does my week look like?']} onAsk={aiHandler} placeholder="e.g. Plan my day" />
         </FuturisticModal>
       )}
     </>

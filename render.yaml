@@ -1,0 +1,52 @@
+# Render Blueprint, FREE plan: AURA's backend and AI service in ONE web service (Dockerfile.render).
+# Render dashboard -> New -> Blueprint -> pick this repo -> fill the values marked `sync: false` -> Apply.
+#
+# Free-plan facts this setup is built around (see DEPLOY.md):
+# - A free service sleeps after 15 minutes without requests and takes about a minute to wake. An uptime monitor
+#   calling /health every 10 minutes keeps it awake; the free hours cover one service all month, hence one service.
+# - There is no permanent disk: the AI service's learned models are kept in a private Supabase Storage bucket
+#   (DATA_SYNC=supabase) and restored at every start.
+# - 512 MB of memory for both processes.
+services:
+  - type: web
+    name: aura
+    runtime: docker
+    plan: free
+    dockerContext: .
+    dockerfilePath: ./Dockerfile.render
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      # ---- backend (Node, public)
+      - key: NODE_ENV
+        value: production
+      # the phone app runs from https://localhost inside its WebView
+      - key: CORS_ORIGINS
+        value: https://localhost,capacitor://localhost
+      - key: VOICE_PROVIDER
+        value: gemini
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: GEMINI_API_KEY
+        sync: false
+
+      # ---- AI service (Python, private inside the container)
+      - key: ENVIRONMENT
+        value: production
+      - key: LLM_PROVIDER
+        value: openrouter      # "openrouter" | "nvidia" | "grok"
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: SERPAPI_API_KEY
+        sync: false
+      - key: VISION_MODEL      # model that reads screenshots for "find this"; empty = the provider's default
+        value: ""
+      # learned models live in Supabase Storage (bucket created automatically, private)
+      - key: DATA_SYNC
+        value: supabase

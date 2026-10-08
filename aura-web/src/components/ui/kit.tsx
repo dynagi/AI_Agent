@@ -1,15 +1,22 @@
-import { useEffect, useId, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Check, ChevronDown, MoreHorizontal, X, type LucideIcon } from 'lucide-react';
+import { AnimatePresence, motion, useReducedMotion, type HTMLMotionProps } from 'framer-motion';
 import { Bar, toneHex, type Tone } from './primitives';
+import { backdropFade, drawerSlide } from '../motion';
 
 /* ---------- IconButton ---------- */
 export function IconButton({ icon: Icon, label, size = 42, bare, className = '', ...rest }: {
   icon: LucideIcon; label: string; size?: number; bare?: boolean;
-} & ButtonHTMLAttributes<HTMLButtonElement>) {
+} & HTMLMotionProps<'button'>) {
+  const reduceMotion = useReducedMotion();
   return (
-    <button className={`icon-btn ${bare ? 'bare' : ''} ${className}`} aria-label={label} title={label} style={{ width: size, height: size }} {...rest}>
+    <motion.button
+      className={`icon-btn ${bare ? 'bare' : ''} ${className}`} aria-label={label} title={label} style={{ width: size, height: size }}
+      {...(reduceMotion ? {} : { whileHover: { scale: 1.08 }, whileTap: { scale: 0.92 } })}
+      {...rest}
+    >
       <Icon size={Math.round(size * 0.42)} />
-    </button>
+    </motion.button>
   );
 }
 
@@ -119,23 +126,30 @@ export function MoreMenu({ items, label = 'More actions', vertical }: { items: M
 
 /* ---------- Drawer (right panel on desktop, bottom sheet on mobile) ---------- */
 export function Drawer({ title, open, onClose, children, icon: Icon }: { title: string; open: boolean; onClose: () => void; children: ReactNode; icon?: LucideIcon }) {
+  const reduceMotion = useReducedMotion();
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
-  if (!open) return null;
   return (
-    <div className="drawer-back" onClick={onClose}>
-      <aside className="drawer hud corners" role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
-        <div className="hud-head">
-          <h3>{Icon && <Icon size={18} />}{title}</h3>
-          <button className="icon-btn" style={{ marginLeft: 'auto', width: 34, height: 34 }} onClick={onClose} aria-label="Close"><X size={16} /></button>
-        </div>
-        <div className="drawer-body">{children}</div>
-      </aside>
-    </div>
+    <AnimatePresence>
+      {open && (
+        <motion.div className="drawer-back" onClick={onClose} variants={backdropFade} initial={reduceMotion ? false : 'hidden'} animate="show" exit="hidden">
+          <motion.aside
+            className="drawer hud corners" role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}
+            variants={drawerSlide} initial={reduceMotion ? false : 'hidden'} animate="show" exit="hidden"
+          >
+            <div className="hud-head">
+              <h3>{Icon && <Icon size={18} />}{title}</h3>
+              <button className="icon-btn" style={{ marginLeft: 'auto', width: 34, height: 34 }} onClick={onClose} aria-label="Close"><X size={16} /></button>
+            </div>
+            <div className="drawer-body">{children}</div>
+          </motion.aside>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
 

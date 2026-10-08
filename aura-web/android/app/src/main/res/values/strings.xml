@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">AURA</string>
+    <string name="title_activity_main">AURA</string>
+    <string name="package_name">com.aura.app</string>
+    <string name="custom_url_scheme">com.aura.app</string>
+    <string name="accessibility_label">AURA shopping agent</string>
+    <string name="accessibility_description">Lets AURA help on your phone when you ask it to: add items to your cart in shopping apps (it never pays), see your screen and tap or scroll for you after a spoken command, find a product you are looking at, and skip YouTube ads. AURA does not act in banking, payment or password apps. If you turn on learning in AURA, it also notes which apps and kinds of action you use, on this phone only, never what you type or message.</string>
+</resources>

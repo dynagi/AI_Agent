@@ -1,10 +1,11 @@
 import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, CalendarDays, Flag, CalendarCheck, CalendarRange, CheckCircle2, List, LayoutGrid, ChevronDown, Sun, Sparkles, ClipboardList } from 'lucide-react';
-import { Hud, IconBox, NeonButton, NeonTabs, PageHero, FilterDropdown, Donut, DemoFlag, toast } from '../components/aura';
-import { AICommandPanel, confirmActions, type AIReply } from '../components/ai';
+import { Hud, IconBox, NeonButton, NeonTabs, PageHero, FilterDropdown, Donut, SyncStatus, toast } from '../components/aura';
+import { AICommandPanel, confirmActions, domainAsk, type AIReply } from '../components/ai';
+import { aura } from '../services/aura';
 import { TaskCard, TaskEditor } from '../components/tasks';
-import { allCategories, type Priority, type TaskItem } from '../data/mockTasks';
+import { allCategories, dayOf, type Priority, type TaskItem } from '../data/tasks';
 import { tasksStore } from '../state/stores';
 import { uid } from '../state/store';
 import { usePageSearch, matches } from '../state/search';
@@ -38,7 +39,8 @@ export function parseTask(text: string, opts: { date?: string; flagged?: boolean
 
 export default function Tasks() {
   const nav = useNavigate();
-  const tasks = tasksStore.use();
+  const stored = tasksStore.use();
+  const tasks = useMemo(() => stored.map((t) => ({ ...t, day: dayOf(t.date) })), [stored]);
   const q = usePageSearch();
   const [tab, setTab] = useState<Tab>('My Tasks');
   const [cat, setCat] = useState<(typeof CATS)[number]>('All Categories');
@@ -82,28 +84,22 @@ export default function Tasks() {
     toast(`Task added: “${t.title}” · ${t.day === 'today' ? 'Today' : t.day === 'tomorrow' ? 'Tomorrow' : t.date}${t.start ? ` ${t.start}` : ''}`);
   };
 
-  const ai = (p: string): AIReply => {
-    const t = p.toLowerCase();
-    if (/break ?down|hackathon/.test(t)) {
-      const subs = ['Finalize problem statement', 'Build architecture diagram', 'Capture UI screenshots', 'Record demo video', 'Final review & rehearsal'];
-      return { text: 'Here is how I would break down your hackathon work into focused steps for today and tomorrow:', preview: subs.map((s, i) => `${s} · ${i < 3 ? 'Today' : 'Tomorrow'}`),
-        actions: confirmActions(`Create ${subs.length} tasks`, () => { subs.forEach((s, i) => add({ title: s, categories: ['Hackathon'], priority: i === 0 ? 'High' : 'Medium', day: i < 3 ? 'today' : 'tomorrow', date: isoIn(i < 3 ? 0 : 1), start: undefined, flagged: i === 0, done: false })); return `${subs.length} hackathon tasks created.`; }) };
+  const chat = domainAsk('tasks', () => JSON.stringify({ today: isoIn(0), openTasks: tasks.filter((t) => !t.done).map((t) => ({ title: t.title, date: t.date, start: t.start, priority: t.priority, categories: t.categories })) }));
+  const ai = async (p: string): Promise<AIReply> => {
+    const text = p.trim();
+    if (/^(break ?down|split|plan out)\b/i.test(text)) {
+      const goal = text.replace(/^(break ?down|split|plan out)\s*(my|the|this)?\s*:?\s*/i, '') || text;
+      const steps = await aura.plan(goal);
+      if (!steps.length) return { text: 'I could not break that down into steps. Try describing the goal in more detail.' };
+      return { text: `Here is a step-by-step breakdown of “${goal}”:`, preview: steps.map((x) => x.title),
+        actions: confirmActions(`Create ${steps.length} tasks`, () => { steps.forEach((x, i) => add({ title: x.title, categories: ['Work'], priority: i === 0 ? 'High' : 'Medium', day: 'today', date: isoIn(0), start: undefined, flagged: i === 0, done: false })); return `${steps.length} tasks created.`; }) };
     }
-    if (/plan my day|optimi[sz]e/.test(t)) {
-      const today = tasks.filter((x) => x.day === 'today' && !x.done);
-      const meetings = today.filter((x) => x.categories.includes('Meeting')).length;
-      const workouts = today.filter((x) => x.categories.includes('Health')).length;
-      const late = today.filter((x) => x.priority === 'Low' && toMin(x.start) >= 21 * 60);
-      return { text: `I found ${today.length} open tasks, ${meetings} meeting${meetings === 1 ? '' : 's'} and ${workouts} workout${workouts === 1 ? '' : 's'} today. Would you like me to optimize your schedule?`,
-        preview: [...today.filter((x) => x.priority === 'High').map((x) => `Flag “${x.title}” as a priority`), ...late.map((x) => `Move “${x.title}” to tomorrow`)],
-        actions: [
-          { label: 'Optimize My Day', variant: 'primary', run: () => { tasksStore.set((ts) => ts.map((x) => (x.day === 'today' && !x.done && x.priority === 'High' ? { ...x, flagged: true } : late.some((l) => l.id === x.id) ? { ...x, day: 'tomorrow', date: isoIn(1) } : x))); return 'Priorities flagged and late low-priority tasks moved to tomorrow.'; } },
-          { label: 'Keep Current Schedule', run: () => 'Okay — nothing changed.' },
-        ] };
+    if (/^(add|remind|create|schedule|new task)\b/i.test(text)) {
+      const parsed = parseTask(text);
+      return { text: 'I can create this task for you:', preview: [`“${parsed.title}” · ${parsed.day === 'today' ? 'Today' : parsed.day === 'tomorrow' ? 'Tomorrow' : parsed.date}${parsed.start ? ` · ${parsed.start}` : ''} · ${parsed.categories.join(', ')}`],
+        actions: confirmActions('Confirm', () => { add(parsed); return `Task created: “${parsed.title}”.`; }) };
     }
-    const parsed = parseTask(p);
-    return { text: `I can create this task for you:`, preview: [`“${parsed.title}” · ${parsed.day === 'today' ? 'Today' : parsed.day === 'tomorrow' ? 'Tomorrow' : parsed.date}${parsed.start ? ` · ${parsed.start}` : ''} · ${parsed.categories.join(', ')}`],
-      actions: confirmActions('Confirm', () => { add(parsed); return `Task created: “${parsed.title}”.`; }) };
+    return chat(text);
   };
 
   return (
@@ -162,12 +158,12 @@ export default function Tasks() {
             </Hud>
           ))}
           {!sections.length && <Hud><div className="empty">No tasks match these filters{q ? ` or “${q}”` : ''}. Try another tab, or tell AURA what you need to do.</div></Hud>}
-          <DemoFlag />
+          <SyncStatus stores={[tasksStore]} />
         </div>
 
         <div className="rail">
           <AICommandPanel title="Let AURA Handle It" badge={null} description="Create, prioritize, and manage your tasks using natural language." promptStyle="boxes"
-            prompts={['Add a task to prepare presentation tomorrow 10 AM', 'Remind me to call mom in the evening', 'Break down my hackathon tasks']}
+            prompts={['Add a task to prepare presentation tomorrow 10 AM', 'Remind me to call mom in the evening', 'Break down: prepare my hackathon presentation']}
             onAsk={ai} cta="Create with AI" ctaIcon={Sparkles} placeholder="Tell AURA what to do…" trigger={trigger} />
           <Hud corners title="Task Summary">
             <div className="row" style={{ gap: 20 }}>

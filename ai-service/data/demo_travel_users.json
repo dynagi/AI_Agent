@@ -1,0 +1,2010 @@
+[
+ {
+  "userId": "USER_000024",
+  "persona": "weekend_traveler",
+  "homeCity": "Mumbai",
+  "bookings": 39,
+  "favouriteDestinations": [
+   "Goa",
+   "Mahabaleshwar"
+  ]
+ },
+ {
+  "userId": "USER_000030",
+  "persona": "business_traveler",
+  "homeCity": "Pune",
+  "bookings": 30,
+  "favouriteDestinations": [
+   "Chandigarh",
+   "Ahmedabad"
+  ]
+ },
+ {
+  "userId": "USER_000080",
+  "persona": "frequent_traveler",
+  "homeCity": "Hyderabad",
+  "bookings": 29,
+  "favouriteDestinations": [
+   "Coorg",
+   "Varanasi",
+   "Mysore"
+  ]
+ },
+ {
+  "userId": "USER_000086",
+  "persona": "family_traveler",
+  "homeCity": "Mumbai",
+  "bookings": 19,
+  "favouriteDestinations": [
+   "Delhi",
+   "Chennai"
+  ]
+ },
+ {
+  "userId": "USER_000108",
+  "persona": "solo_traveler",
+  "homeCity": "Ahmedabad",
+  "bookings": 16,
+  "favouriteDestinations": [
+   "Coorg",
+   "Munnar"
+  ]
+ },
+ {
+  "userId": "USER_000109",
+  "persona": "budget_traveler",
+  "homeCity": "Jaipur",
+  "bookings": 19,
+  "favouriteDestinations": [
+   "Mysore",
+   "Kochi"
+  ]
+ },
+ {
+  "userId": "USER_000144",
+  "persona": "weekend_traveler",
+  "homeCity": "Delhi",
+  "bookings": 22,
+  "favouriteDestinations": [
+   "Udaipur",
+   "Manali",
+   "Amritsar",
+   "Jaipur",
+   "Shimla"
+  ]
+ },
+ {
+  "userId": "USER_000201",
+  "persona": "luxury_traveler",
+  "homeCity": "Bangalore",
+  "bookings": 22,
+  "favouriteDestinations": [
+   "Udaipur",
+   "London",
+   "Dubai",
+   "Maldives"
+  ]
+ },
+ {
+  "userId": "USER_000209",
+  "persona": "solo_traveler",
+  "homeCity": "Ahmedabad",
+  "bookings": 23,
+  "favouriteDestinations": [
+   "Coorg",
+   "Pondicherry",
+   "Munnar",
+   "Bali"
+  ]
+ },
+ {
+  "userId": "USER_000224",
+  "persona": "family_traveler",
+  "homeCity": "Pune",
+  "bookings": 9,
+  "favouriteDestinations": [
+   "Darjeeling",
+   "Amritsar"
+  ]
+ },
+ {
+  "userId": "USER_000337",
+  "persona": "solo_traveler",
+  "homeCity": "Delhi",
+  "bookings": 23,
+  "favouriteDestinations": [
+   "Leh",
+   "Goa",
+   "Manali",
+   "Varanasi",
+   "Pondicherry"
+  ]
+ },
+ {
+  "userId": "USER_000472",
+  "persona": "luxury_traveler",
+  "homeCity": "Jaipur",
+  "bookings": 12,
+  "favouriteDestinations": [
+   "Goa",
+   "Paris",
+   "Singapore",
+   "Port Blair",
+   "Bali"
+  ]
+ },
+ {
+  "userId": "USER_000484",
+  "persona": "family_traveler",
+  "homeCity": "Kolkata",
+  "bookings": 8,
+  "favouriteDestinations": [
+   "Shimla",
+   "Delhi",
+   "Goa",
+   "Udaipur"
+  ]
+ },
+ {
+  "userId": "USER_000491",
+  "persona": "frequent_traveler",
+  "homeCity": "Delhi",
+  "bookings": 54,
+  "favouriteDestinations": [
+   "Manali",
+   "Kochi",
+   "Goa",
+   "Shimla"
+  ]
+ },
+ {
+  "userId": "USER_000587",
+  "persona": "solo_traveler",
+  "homeCity": "Hyderabad",
+  "bookings": 19,
+  "favouriteDestinations": [
+   "Rishikesh",
+   "Darjeeling",
+   "Coorg"
+  ]
+ },
+ {
+  "userId": "USER_000593",
+  "persona": "solo_traveler",
+  "homeCity": "Delhi",
+  "bookings": 13,
+  "favouriteDestinations": [
+   "Pondicherry",
+   "Bangkok",
+   "Varanasi",
+   "Goa",
+   "Manali"
+  ]
+ },
+ {
+  "userId": "USER_000609",
+  "persona": "business_traveler",
+  "homeCity": "Bangalore",
+  "bookings": 29,
+  "favouriteDestinations": [
+   "Kolkata",
+   "Hyderabad"
+  ]
+ },
+ {
+  "userId": "USER_000639",
+  "persona": "weekend_traveler",
+  "homeCity": "Hyderabad",
+  "bookings": 12,
+  "favouriteDestinations": [
+   "Mysore",
+   "Coorg",
+   "Pondicherry",
+   "Lonavala",
+   "Mahabaleshwar"
+  ]
+ },
+ {
+  "userId": "USER_000689",
+  "persona": "family_traveler",
+  "homeCity": "Mumbai",
+  "bookings": 15,
+  "favouriteDestinations": [
+   "Amritsar",
+   "Pondicherry",
+   "Ahmedabad"
+  ]
+ },
+ {
+  "userId": "USER_000733",
+  "persona": "weekend_traveler",
+  "homeCity": "Jaipur",
+  "bookings": 25,
+  "favouriteDestinations": [
+   "Udaipur",
+   "Amritsar",
+   "Rishikesh",
+   "Agra"
+  ]
+ },
+ {
+  "userId": "USER_000814",
+  "persona": "business_traveler",
+  "homeCity": "Chennai",
+  "bookings": 14,
+  "favouriteDestinations": [
+   "Hyderabad",
+   "Chandigarh",
+   "Pune",
+   "Bangalore"
+  ]
+ },
+ {
+  "userId": "USER_000864",
+  "persona": "family_traveler",
+  "homeCity": "Bangalore",
+  "bookings": 14,
+  "favouriteDestinations": [
+   "Manali",
+   "Goa",
+   "Rishikesh",
+   "Ahmedabad",
+   "Lucknow"
+  ]
+ },
+ {
+  "userId": "USER_000909",
+  "persona": "solo_traveler",
+  "homeCity": "Ahmedabad",
+  "bookings": 13,
+  "favouriteDestinations": [
+   "Udaipur",
+   "Bangkok",
+   "Coorg"
+  ]
+ },
+ {
+  "userId": "USER_000923",
+  "persona": "business_traveler",
+  "homeCity": "Mumbai",
+  "bookings": 16,
+  "favouriteDestinations": [
+   "Bangalore",
+   "Kolkata"
+  ]
+ },
+ {
+  "userId": "USER_000937",
+  "persona": "budget_traveler",
+  "homeCity": "Bangalore",
+  "bookings": 13,
+  "favouriteDestinations": [
+   "Agra",
+   "Leh"
+  ]
+ },
+ {
+  "userId": "USER_000966",
+  "persona": "business_traveler",
+  "homeCity": "Delhi",
+  "bookings": 45,
+  "favouriteDestinations": [
+   "Bangalore",
+   "Hyderabad",
+   "Lucknow",
+   "Mumbai"
+  ]
+ },
+ {
+  "userId": "USER_000967",
+  "persona": "business_traveler",
+  "homeCity": "Hyderabad",
+  "bookings": 60,
+  "favouriteDestinations": [
+   "Lucknow",
+   "Chennai",
+   "Ahmedabad",
+   "Chandigarh",
+   "Kolkata"
+  ]
+ },
+ {
+  "userId": "USER_001020",
+  "persona": "frequent_traveler",
+  "homeCity": "Lucknow",
+  "bookings": 46,
+  "favouriteDestinations": [
+   "Mysore",
+   "Leh",
+   "Varanasi",
+   "Pune"
+  ]
+ },
+ {
+  "userId": "USER_001039",
+  "persona": "solo_traveler",
+  "homeCity": "Pune",
+  "bookings": 35,
+  "favouriteDestinations": [
+   "Rishikesh",
+   "Pondicherry",
+   "Udaipur"
+  ]
+ },
+ {
+  "userId": "USER_001041",
+  "persona": "family_traveler",
+  "homeCity": "Hyderabad",
+  "bookings": 8,
+  "favouriteDestinations": [
+   "Pondicherry",
+   "Kolkata",
+   "Goa",
+   "Mysore"
+  ]
+ },
+ {
+  "userId": "USER_001134",
+  "persona": "weekend_traveler",
+  "homeCity": "Delhi",
+  "bookings": 27,
+  "favouriteDestinations": [
+   "Manali",
+   "Agra",
+   "Shimla",
+   "Leh",
+   "Jaipur"
+  ]
+ },
+ {
+  "userId": "USER_001182",
+  "persona": "weekend_traveler",
+  "homeCity": "Ahmedabad",
+  "bookings": 27,
+  "favouriteDestinations": [
+   "Udaipur",
+   "Lonavala",
+   "Jaipur",
+   "Mahabaleshwar"
+  ]
+ },
+ {
+  "userId": "USER_001214",
+  "persona": "frequent_traveler",
+  "homeCity": "Delhi",
+  "bookings": 38,
+  "favouriteDestinations": [
+   "Mahabaleshwar",
+   "Bangalore",
+   "Goa",
+   "Bangkok"
+  ]
+ },
+ {
+  "userId": "USER_001356",
+  "persona": "frequent_traveler",
+  "homeCity": "Pune",
+  "bookings": 50,
+  "favouriteDestinations": [
+   "Coorg",
+   "Singapore",
+   "Ooty"
+  ]
+ },
+ {
+  "userId": "USER_001366",
+  "persona": "business_traveler",
+  "homeCity": "Delhi",
+  "bookings": 32,
+  "favouriteDestinations": [
+   "Chandigarh",
+   "Kolkata",
+   "Ahmedabad"
+  ]
+ },
+ {
+  "userId": "USER_001389",
+  "persona": "family_traveler",
+  "homeCity": "Delhi",
+  "bookings": 8,
+  "favouriteDestinations": [
+   "Kochi",
+   "Rishikesh",
+   "Chennai"
+  ]
+ },
+ {
+  "userId": "USER_001423",
+  "persona": "business_traveler",
+  "homeCity": "Chennai",
+  "bookings": 51,
+  "favouriteDestinations": [
+   "Hyderabad",
+   "Ahmedabad",
+   "Delhi",
+   "Bangalore",
+   "Pune"
+  ]
+ },
+ {
+  "userId": "USER_001430",
+  "persona": "frequent_traveler",
+  "homeCity": "Ahmedabad",
+  "bookings": 47,
+  "favouriteDestinations": [
+   "Port Blair",
+   "Darjeeling",
+   "Dubai",
+   "Rishikesh"
+  ]
+ },
+ {
+  "userId": "USER_001445",
+  "persona": "business_traveler",
+  "homeCity": "Delhi",
+  "bookings": 25,
+  "favouriteDestinations": [
+   "Kolkata",
+   "Hyderabad",
+   "Pune",
+   "Bangalore",
+   "Chandigarh"
+  ]
+ },
+ {
+  "userId": "USER_001460",
+  "persona": "luxury_traveler",
+  "homeCity": "Delhi",
+  "bookings": 21,
+  "favouriteDestinations": [
+   "Udaipur",
+   "Maldives",
+   "Jaipur",
+   "Coorg"
+  ]
+ },
+ {
+  "userId": "USER_001527",
+  "persona": "luxury_traveler",
+  "homeCity": "Delhi",
+  "bookings": 12,
+  "favouriteDestinations": [
+   "Bali",
+   "Udaipur",
+   "Coorg"
+  ]
+ },
+ {
+  "userId": "USER_001537",
+  "persona": "solo_traveler",
+  "homeCity": "Kochi",
+  "bookings": 16,
+  "favouriteDestinations": [
+   "Leh",
+   "Coorg"
+  ]
+ },
+ {
+  "userId": "USER_001541",
+  "persona": "budget_traveler",
+  "homeCity": "Mumbai",
+  "bookings": 12,
+  "favouriteDestinations": [
+   "Munnar",
+   "Ooty",
+   "Pondicherry"
+  ]
+ },
+ {
+  "userId": "USER_001543",
+  "persona": "family_traveler",
+  "homeCity": "Mumbai",
+  "bookings": 14,
+  "favouriteDestinations": [
+   "Agra",
+   "Munnar"
+  ]
+ },
+ {
+  "userId": "USER_001595",
+  "persona": "budget_traveler",
+  "homeCity": "Hyderabad",
+  "bookings": 11,
+  "favouriteDestinations": [
+   "Mysore",
+   "Manali",
+   "Rishikesh",
+   "Agra"
+  ]
+ },
+ {
+  "userId": "USER_001607",
+  "persona": "weekend_traveler",
+  "homeCity": "Mumbai",
+  "bookings": 12,
+  "favouriteDestinations": [
+   "Lonavala",
+   "Goa",
+   "Mahabaleshwar",
+   "Udaipur"
+  ]
+ },
+ {
+  "userId": "USER_001625",
+  "persona": "weekend_traveler",
+  "homeCity": "Ahmedabad",
+  "bookings": 20,
+  "favouriteDestinations": [
+   "Mahabaleshwar",
+   "Udaipur",
+   "Jaipur"
+  ]
+ },
+ {
+  "userId": "USER_001641",
+  "persona": "frequent_traveler",
+  "homeCity": "Mumbai",
+  "bookings": 53,
+  "favouriteDestinations": [
+   "Shimla",
+   "Darjeeling",
+   "Pune",
+   "Kochi"
+  ]
+ },
+ {
+  "userId": "USER_001667",
+  "persona": "business_traveler",
+  "homeCity": "Delhi",
+  "bookings": 40,
+  "favouriteDestinations": [
+   "Ahmedabad",
+   "Lucknow"
+  ]
+ },
+ {
+  "userId": "USER_001679",
+  "persona": "business_traveler",
+  "homeCity": "Pune",
+  "bookings": 70,
+  "favouriteDestinations": [
+   "Hyderabad",
+   "Kolkata",
+   "Bangalore",
+   "Lucknow",
+   "Chennai"
+  ]
+ },
+ {
+  "userId": "USER_001698",
+  "persona": "family_traveler",
+  "homeCity": "Hyderabad",
+  "bookings": 11,
+  "favouriteDestinations": [
+   "Ahmedabad",
+   "Pune"
+  ]
+ },
+ {
+  "userId": "USER_001723",
+  "persona": "solo_traveler",
+  "homeCity": "Ahmedabad",
+  "bookings": 15,
+  "favouriteDestinations": [
+   "Leh",
+   "Manali",
+   "Darjeeling"
+  ]
+ },
+ {
+  "userId": "USER_001725",
+  "persona": "solo_traveler",
+  "homeCity": "Mumbai",
+  "bookings": 19,
+  "favouriteDestinations": [
+   "Udaipur",
+   "Darjeeling"
+  ]
+ },
+ {
+  "userId": "USER_001727",
+  "persona": "frequent_traveler",
+  "homeCity": "Delhi",
+  "bookings": 30,
+  "favouriteDestinations": [
+   "Dubai",
+   "Agra"
+  ]
+ },
+ {
+  "userId": "USER_001733",
+  "persona": "family_traveler",
+  "homeCity": "Chennai",
+  "bookings": 10,
+  "favouriteDestinations": [
+   "Mumbai",
+   "Port Blair",
+   "Pondicherry"
+  ]
+ },
+ {
+  "userId": "USER_001742",
+  "persona": "family_traveler",
+  "homeCity": "Mumbai",
+  "bookings": 15,
+  "favouriteDestinations": [
+   "Pune",
+   "Ahmedabad",
+   "Hyderabad",
+   "Jaipur"
+  ]
+ },
+ {
+  "userId": "USER_001837",
+  "persona": "budget_traveler",
+  "homeCity": "Chennai",
+  "bookings": 19,
+  "favouriteDestinations": [
+   "Mahabaleshwar",
+   "Lonavala"
+  ]
+ },
+ {
+  "userId": "USER_001840",
+  "persona": "family_traveler",
+  "homeCity": "Mumbai",
+  "bookings": 16,
+  "favouriteDestinations": [
+   "Coorg",
+   "Pondicherry"
+  ]
+ },
+ {
+  "userId": "USER_001920",
+  "persona": "luxury_traveler",
+  "homeCity": "Bangalore",
+  "bookings": 14,
+  "favouriteDestinations": [
+   "Jaipur",
+   "Goa",
+   "Bangkok"
+  ]
+ },
+ {
+  "userId": "USER_002015",
+  "persona": "budget_traveler",
+  "homeCity": "Mumbai",
+  "bookings": 10,
+  "favouriteDestinations": [
+   "Lonavala",
+   "Varanasi"
+  ]
+ },
+ {
+  "userId": "USER_002045",
+  "persona": "frequent_traveler",
+  "homeCity": "Mumbai",
+  "bookings": 27,
+  "favouriteDestinations": [
+   "Bangkok",
+   "Ooty",
+   "Coorg",
+   "Munnar"
+  ]
+ },
+ {
+  "userId": "USER_002121",
+  "persona": "family_traveler",
+  "homeCity": "Kochi",
+  "bookings": 9,
+  "favouriteDestinations": [
+   "Chennai",
+   "Udaipur"
+  ]
+ },
+ {
+  "userId": "USER_002248",
+  "persona": "family_traveler",
+  "homeCity": "Delhi",
+  "bookings": 9,
+  "favouriteDestinations": [
+   "Chandigarh",
+   "Hyderabad",
+   "Kolkata"
+  ]
+ },
+ {
+  "userId": "USER_002268",
+  "persona": "budget_traveler",
+  "homeCity": "Chennai",
+  "bookings": 11,
+  "favouriteDestinations": [
+   "Mahabaleshwar",
+   "Pondicherry",
+   "Agra",
+   "Amritsar",
+   "Kochi"
+  ]
+ },
+ {
+  "userId": "USER_002278",
+  "persona": "solo_traveler",
+  "homeCity": "Hyderabad",
+  "bookings": 16,
+  "favouriteDestinations": [
+   "Darjeeling",
+   "Bangkok",
+   "Munnar",
+   "Manali",
+   "Leh"
+  ]
+ },
+ {
+  "userId": "USER_002295",
+  "persona": "frequent_traveler",
+  "homeCity": "Pune",
+  "bookings": 47,
+  "favouriteDestinations": [
+   "Goa",
+   "Mumbai",
+   "Kolkata",
+   "Amritsar",
+   "Leh"
+  ]
+ },
+ {
+  "userId": "USER_002302",
+  "persona": "solo_traveler",
+  "homeCity": "Ahmedabad",
+  "bookings": 17,
+  "favouriteDestinations": [
+   "Leh",
+   "Coorg",
+   "Bangkok",
+   "Manali"
+  ]
+ },
+ {
+  "userId": "USER_002367",
+  "persona": "frequent_traveler",
+  "homeCity": "Mumbai",
+  "bookings": 31,
+  "favouriteDestinations": [
+   "Rishikesh",
+   "Delhi",
+   "Goa",
+   "Hyderabad",
+   "Kolkata"
+  ]
+ },
+ {
+  "userId": "USER_002426",
+  "persona": "family_traveler",
+  "homeCity": "Mumbai",
+  "bookings": 19,
+  "favouriteDestinations": [
+   "Leh",
+   "Chennai",
+   "Lucknow",
+   "Jaipur"
+  ]
+ },
+ {
+  "userId": "USER_002447",
+  "persona": "luxury_traveler",
+  "homeCity": "Kolkata",
+  "bookings": 13,
+  "favouriteDestinations": [
+   "Port Blair",
+   "Leh",
+   "London"
+  ]
+ },
+ {
+  "userId": "USER_002477",
+  "persona": "weekend_traveler",
+  "homeCity": "Mumbai",
+  "bookings": 18,
+  "favouriteDestinations": [
+   "Goa",
+   "Lonavala"
+  ]
+ },
+ {
+  "userId": "USER_002479",
+  "persona": "luxury_traveler",
+  "homeCity": "Mumbai",
+  "bookings": 20,
+  "favouriteDestinations": [
+   "Bali",
+   "Paris"
+  ]
+ },
+ {
+  "userId": "USER_002486",
+  "persona": "solo_traveler",
+  "homeCity": "Mumbai",
+  "bookings": 21,
+  "favouriteDestinations": [
+   "Rishikesh",
+   "Pondicherry",
+   "Darjeeling",
+   "Bali",
+   "Goa"
+  ]
+ },
+ {
+  "userId": "USER_002503",
+  "persona": "family_traveler",
+  "homeCity": "Mumbai",
+  "bookings": 17,
+  "favouriteDestinations": [
+   "Manali",
+   "Pondicherry",
+   "Chennai",
+   "Jaipur"
+  ]
+ },
+ {
+  "userId": "USER_002574",
+  "persona": "business_traveler",
+  "homeCity": "Chennai",
+  "bookings": 16,
+  "favouriteDestinations": [
+   "Delhi",
+   "Kolkata",
+   "Mumbai",
+   "Bangalore"
+  ]
+ },
+ {
+  "userId": "USER_002619",
+  "persona": "frequent_traveler",
+  "homeCity": "Delhi",
+  "bookings": 27,
+  "favouriteDestinations": [
+   "Mumbai",
+   "Pune",
+   "Singapore",
+   "Bangkok",
+   "Bangalore"
+  ]
+ },
+ {
+  "userId": "USER_002690",
+  "persona": "business_traveler",
+  "homeCity": "Mumbai",
+  "bookings": 33,
+  "favouriteDestinations": [
+   "Pune",
+   "Chandigarh"
+  ]
+ },
+ {
+  "userId": "USER_002700",
+  "persona": "business_traveler",
+  "homeCity": "Pune",
+  "bookings": 34,
+  "favouriteDestinations": [
+   "Ahmedabad",
+   "Hyderabad",
+   "Chennai",
+   "Delhi",
+   "Lucknow"
+  ]
+ },
+ {
+  "userId": "USER_002702",
+  "persona": "luxury_traveler",
+  "homeCity": "Bangalore",
+  "bookings": 10,
+  "favouriteDestinations": [
+   "Goa",
+   "Jaipur",
+   "Bangkok",
+   "London"
+  ]
+ },
+ {
+  "userId": "USER_002705",
+  "persona": "luxury_traveler",
+  "homeCity": "Delhi",
+  "bookings": 18,
+  "favouriteDestinations": [
+   "Singapore",
+   "Udaipur"
+  ]
+ },
+ {
+  "userId": "USER_002708",
+  "persona": "budget_traveler",
+  "homeCity": "Delhi",
+  "bookings": 9,
+  "favouriteDestinations": [
+   "Ooty",
+   "Darjeeling",
+   "Leh",
+   "Munnar",
+   "Mahabaleshwar"
+  ]
+ },
+ {
+  "userId": "USER_002714",
+  "persona": "frequent_traveler",
+  "homeCity": "Bangalore",
+  "bookings": 43,
+  "favouriteDestinations": [
+   "Kolkata",
+   "Lonavala",
+   "Mysore"
+  ]
+ },
+ {
+  "userId": "USER_002719",
+  "persona": "frequent_traveler",
+  "homeCity": "Bangalore",
+  "bookings": 22,
+  "favouriteDestinations": [
+   "Lonavala",
+   "Jaipur",
+   "Bangkok",
+   "Amritsar"
+  ]
+ },
+ {
+  "userId": "USER_002785",
+  "persona": "family_traveler",
+  "homeCity": "Delhi",
+  "bookings": 13,
+  "favouriteDestinations": [
+   "Port Blair",
+   "Kochi",
+   "Kolkata",
+   "Pune"
+  ]
+ },
+ {
+  "userId": "USER_002790",
+  "persona": "solo_traveler",
+  "homeCity": "Mumbai",
+  "bookings": 11,
+  "favouriteDestinations": [
+   "Bangkok",
+   "Munnar"
+  ]
+ },
+ {
+  "userId": "USER_002800",
+  "persona": "budget_traveler",
+  "homeCity": "Bangalore",
+  "bookings": 14,
+  "favouriteDestinations": [
+   "Manali",
+   "Munnar",
+   "Agra",
+   "Varanasi"
+  ]
+ },
+ {
+  "userId": "USER_002819",
+  "persona": "weekend_traveler",
+  "homeCity": "Bangalore",
+  "bookings": 13,
+  "favouriteDestinations": [
+   "Mysore",
+   "Coorg"
+  ]
+ },
+ {
+  "userId": "USER_002837",
+  "persona": "budget_traveler",
+  "homeCity": "Jaipur",
+  "bookings": 19,
+  "favouriteDestinations": [
+   "Ooty",
+   "Leh",
+   "Lonavala",
+   "Darjeeling"
+  ]
+ },
+ {
+  "userId": "USER_002853",
+  "persona": "budget_traveler",
+  "homeCity": "Kochi",
+  "bookings": 9,
+  "favouriteDestinations": [
+   "Shimla",
+   "Ooty"
+  ]
+ },
+ {
+  "userId": "USER_002914",
+  "persona": "family_traveler",
+  "homeCity": "Jaipur",
+  "bookings": 10,
+  "favouriteDestinations": [
+   "Mysore",
+   "Ahmedabad"
+  ]
+ },
+ {
+  "userId": "USER_002915",
+  "persona": "frequent_traveler",
+  "homeCity": "Chennai",
+  "bookings": 16,
+  "favouriteDestinations": [
+   "Bangkok",
+   "Varanasi",
+   "Ahmedabad",
+   "Udaipur"
+  ]
+ },
+ {
+  "userId": "USER_002963",
+  "persona": "luxury_traveler",
+  "homeCity": "Chennai",
+  "bookings": 25,
+  "favouriteDestinations": [
+   "Jaipur",
+   "Maldives",
+   "Goa",
+   "Leh",
+   "Bangkok"
+  ]
+ },
+ {
+  "userId": "USER_002984",
+  "persona": "weekend_traveler",
+  "homeCity": "Mumbai",
+  "bookings": 33,
+  "favouriteDestinations": [
+   "Udaipur",
+   "Lonavala",
+   "Goa",
+   "Mahabaleshwar"
+  ]
+ },
+ {
+  "userId": "USER_002992",
+  "persona": "business_traveler",
+  "homeCity": "Pune",
+  "bookings": 17,
+  "favouriteDestinations": [
+   "Kolkata",
+   "Hyderabad"
+  ]
+ },
+ {
+  "userId": "USER_003008",
+  "persona": "weekend_traveler",
+  "homeCity": "Kolkata",
+  "bookings": 21,
+  "favouriteDestinations": [
+   "Agra",
+   "Darjeeling",
+   "Varanasi",
+   "Port Blair"
+  ]
+ },
+ {
+  "userId": "USER_003015",
+  "persona": "luxury_traveler",
+  "homeCity": "Chennai",
+  "bookings": 9,
+  "favouriteDestinations": [
+   "Udaipur",
+   "Singapore",
+   "Port Blair"
+  ]
+ },
+ {
+  "userId": "USER_003077",
+  "persona": "business_traveler",
+  "homeCity": "Delhi",
+  "bookings": 31,
+  "favouriteDestinations": [
+   "Kolkata",
+   "Ahmedabad",
+   "Lucknow",
+   "Chennai",
+   "Pune"
+  ]
+ },
+ {
+  "userId": "USER_003086",
+  "persona": "weekend_traveler",
+  "homeCity": "Bangalore",
+  "bookings": 25,
+  "favouriteDestinations": [
+   "Ooty",
+   "Munnar"
+  ]
+ },
+ {
+  "userId": "USER_003089",
+  "persona": "budget_traveler",
+  "homeCity": "Mumbai",
+  "bookings": 13,
+  "favouriteDestinations": [
+   "Pondicherry",
+   "Jaipur"
+  ]
+ },
+ {
+  "userId": "USER_003106",
+  "persona": "business_traveler",
+  "homeCity": "Hyderabad",
+  "bookings": 47,
+  "favouriteDestinations": [
+   "Kolkata",
+   "Delhi",
+   "Bangalore",
+   "Lucknow",
+   "Ahmedabad"
+  ]
+ },
+ {
+  "userId": "USER_003131",
+  "persona": "luxury_traveler",
+  "homeCity": "Kochi",
+  "bookings": 16,
+  "favouriteDestinations": [
+   "Udaipur",
+   "London"
+  ]
+ },
+ {
+  "userId": "USER_003155",
+  "persona": "budget_traveler",
+  "homeCity": "Hyderabad",
+  "bookings": 16,
+  "favouriteDestinations": [
+   "Darjeeling",
+   "Varanasi",
+   "Mysore",
+   "Mahabaleshwar"
+  ]
+ },
+ {
+  "userId": "USER_003165",
+  "persona": "solo_traveler",
+  "homeCity": "Chennai",
+  "bookings": 21,
+  "favouriteDestinations": [
+   "Leh",
+   "Munnar",
+   "Coorg"
+  ]
+ },
+ {
+  "userId": "USER_003203",
+  "persona": "family_traveler",
+  "homeCity": "Ahmedabad",
+  "bookings": 12,
+  "favouriteDestinations": [
+   "Darjeeling",
+   "Jaipur"
+  ]
+ },
+ {
+  "userId": "USER_003280",
+  "persona": "budget_traveler",
+  "homeCity": "Chennai",
+  "bookings": 8,
+  "favouriteDestinations": [
+   "Shimla",
+   "Varanasi"
+  ]
+ },
+ {
+  "userId": "USER_003297",
+  "persona": "weekend_traveler",
+  "homeCity": "Lucknow",
+  "bookings": 23,
+  "favouriteDestinations": [
+   "Varanasi",
+   "Shimla",
+   "Rishikesh",
+   "Agra",
+   "Jaipur"
+  ]
+ },
+ {
+  "userId": "USER_003306",
+  "persona": "luxury_traveler",
+  "homeCity": "Kolkata",
+  "bookings": 16,
+  "favouriteDestinations": [
+   "Leh",
+   "Port Blair",
+   "Udaipur"
+  ]
+ },
+ {
+  "userId": "USER_003317",
+  "persona": "frequent_traveler",
+  "homeCity": "Chennai",
+  "bookings": 77,
+  "favouriteDestinations": [
+   "Pune",
+   "Ooty",
+   "Bangalore",
+   "Mysore"
+  ]
+ },
+ {
+  "userId": "USER_003331",
+  "persona": "weekend_traveler",
+  "homeCity": "Ahmedabad",
+  "bookings": 41,
+  "favouriteDestinations": [
+   "Udaipur",
+   "Jaipur",
+   "Mahabaleshwar",
+   "Lonavala"
+  ]
+ },
+ {
+  "userId": "USER_003393",
+  "persona": "luxury_traveler",
+  "homeCity": "Mumbai",
+  "bookings": 26,
+  "favouriteDestinations": [
+   "Maldives",
+   "Coorg",
+   "Leh",
+   "Bangkok"
+  ]
+ },
+ {
+  "userId": "USER_003444",
+  "persona": "budget_traveler",
+  "homeCity": "Pune",
+  "bookings": 10,
+  "favouriteDestinations": [
+   "Varanasi",
+   "Amritsar"
+  ]
+ },
+ {
+  "userId": "USER_003470",
+  "persona": "solo_traveler",
+  "homeCity": "Kolkata",
+  "bookings": 18,
+  "favouriteDestinations": [
+   "Leh",
+   "Pondicherry"
+  ]
+ },
+ {
+  "userId": "USER_003489",
+  "persona": "family_traveler",
+  "homeCity": "Mumbai",
+  "bookings": 11,
+  "favouriteDestinations": [
+   "Kolkata",
+   "Lucknow",
+   "Chennai"
+  ]
+ },
+ {
+  "userId": "USER_003512",
+  "persona": "business_traveler",
+  "homeCity": "Bangalore",
+  "bookings": 35,
+  "favouriteDestinations": [
+   "Pune",
+   "Delhi",
+   "Ahmedabad"
+  ]
+ },
+ {
+  "userId": "USER_003536",
+  "persona": "budget_traveler",
+  "homeCity": "Mumbai",
+  "bookings": 14,
+  "favouriteDestinations": [
+   "Lonavala",
+   "Varanasi",
+   "Jaipur",
+   "Munnar"
+  ]
+ },
+ {
+  "userId": "USER_003551",
+  "persona": "weekend_traveler",
+  "homeCity": "Ahmedabad",
+  "bookings": 53,
+  "favouriteDestinations": [
+   "Mahabaleshwar",
+   "Jaipur",
+   "Lonavala",
+   "Udaipur"
+  ]
+ },
+ {
+  "userId": "USER_003568",
+  "persona": "solo_traveler",
+  "homeCity": "Kochi",
+  "bookings": 10,
+  "favouriteDestinations": [
+   "Darjeeling",
+   "Udaipur",
+   "Manali"
+  ]
+ },
+ {
+  "userId": "USER_003587",
+  "persona": "solo_traveler",
+  "homeCity": "Delhi",
+  "bookings": 14,
+  "favouriteDestinations": [
+   "Bali",
+   "Darjeeling",
+   "Bangkok"
+  ]
+ },
+ {
+  "userId": "USER_003631",
+  "persona": "luxury_traveler",
+  "homeCity": "Kolkata",
+  "bookings": 14,
+  "favouriteDestinations": [
+   "London",
+   "Port Blair",
+   "Bangkok"
+  ]
+ },
+ {
+  "userId": "USER_003641",
+  "persona": "weekend_traveler",
+  "homeCity": "Mumbai",
+  "bookings": 17,
+  "favouriteDestinations": [
+   "Lonavala",
+   "Udaipur",
+   "Goa"
+  ]
+ },
+ {
+  "userId": "USER_003645",
+  "persona": "family_traveler",
+  "homeCity": "Pune",
+  "bookings": 9,
+  "favouriteDestinations": [
+   "Kolkata",
+   "Hyderabad",
+   "Port Blair"
+  ]
+ },
+ {
+  "userId": "USER_003681",
+  "persona": "luxury_traveler",
+  "homeCity": "Kolkata",
+  "bookings": 18,
+  "favouriteDestinations": [
+   "Maldives",
+   "Singapore",
+   "Paris",
+   "Udaipur"
+  ]
+ },
+ {
+  "userId": "USER_003796",
+  "persona": "budget_traveler",
+  "homeCity": "Bangalore",
+  "bookings": 16,
+  "favouriteDestinations": [
+   "Munnar",
+   "Agra",
+   "Darjeeling",
+   "Kochi",
+   "Ooty"
+  ]
+ },
+ {
+  "userId": "USER_003799",
+  "persona": "frequent_traveler",
+  "homeCity": "Ahmedabad",
+  "bookings": 33,
+  "favouriteDestinations": [
+   "Lucknow",
+   "Singapore",
+   "Delhi",
+   "Hyderabad"
+  ]
+ },
+ {
+  "userId": "USER_003860",
+  "persona": "luxury_traveler",
+  "homeCity": "Mumbai",
+  "bookings": 15,
+  "favouriteDestinations": [
+   "Leh",
+   "London",
+   "Dubai"
+  ]
+ },
+ {
+  "userId": "USER_003863",
+  "persona": "family_traveler",
+  "homeCity": "Chennai",
+  "bookings": 8,
+  "favouriteDestinations": [
+   "Darjeeling",
+   "Kolkata"
+  ]
+ },
+ {
+  "userId": "USER_003866",
+  "persona": "luxury_traveler",
+  "homeCity": "Chennai",
+  "bookings": 11,
+  "favouriteDestinations": [
+   "Bangkok",
+   "London",
+   "Maldives"
+  ]
+ },
+ {
+  "userId": "USER_003907",
+  "persona": "luxury_traveler",
+  "homeCity": "Mumbai",
+  "bookings": 14,
+  "favouriteDestinations": [
+   "Goa",
+   "Paris",
+   "Jaipur"
+  ]
+ },
+ {
+  "userId": "USER_003928",
+  "persona": "frequent_traveler",
+  "homeCity": "Kolkata",
+  "bookings": 20,
+  "favouriteDestinations": [
+   "Ahmedabad",
+   "Lucknow",
+   "Shimla"
+  ]
+ },
+ {
+  "userId": "USER_003947",
+  "persona": "business_traveler",
+  "homeCity": "Bangalore",
+  "bookings": 33,
+  "favouriteDestinations": [
+   "Delhi",
+   "Hyderabad",
+   "Pune",
+   "Chandigarh",
+   "Mumbai"
+  ]
+ },
+ {
+  "userId": "USER_003954",
+  "persona": "budget_traveler",
+  "homeCity": "Mumbai",
+  "bookings": 17,
+  "favouriteDestinations": [
+   "Darjeeling",
+   "Amritsar",
+   "Agra"
+  ]
+ },
+ {
+  "userId": "USER_003973",
+  "persona": "luxury_traveler",
+  "homeCity": "Pune",
+  "bookings": 41,
+  "favouriteDestinations": [
+   "Bali",
+   "London",
+   "Paris",
+   "Leh"
+  ]
+ },
+ {
+  "userId": "USER_004003",
+  "persona": "solo_traveler",
+  "homeCity": "Pune",
+  "bookings": 14,
+  "favouriteDestinations": [
+   "Munnar",
+   "Leh"
+  ]
+ },
+ {
+  "userId": "USER_004042",
+  "persona": "budget_traveler",
+  "homeCity": "Bangalore",
+  "bookings": 9,
+  "favouriteDestinations": [
+   "Varanasi",
+   "Mahabaleshwar",
+   "Mysore",
+   "Amritsar"
+  ]
+ },
+ {
+  "userId": "USER_004153",
+  "persona": "luxury_traveler",
+  "homeCity": "Jaipur",
+  "bookings": 20,
+  "favouriteDestinations": [
+   "Dubai",
+   "Goa",
+   "Udaipur"
+  ]
+ },
+ {
+  "userId": "USER_004165",
+  "persona": "luxury_traveler",
+  "homeCity": "Kolkata",
+  "bookings": 17,
+  "favouriteDestinations": [
+   "Maldives",
+   "Coorg",
+   "Goa",
+   "Paris",
+   "Leh"
+  ]
+ },
+ {
+  "userId": "USER_004186",
+  "persona": "business_traveler",
+  "homeCity": "Hyderabad",
+  "bookings": 24,
+  "favouriteDestinations": [
+   "Pune",
+   "Ahmedabad",
+   "Bangalore",
+   "Kolkata"
+  ]
+ },
+ {
+  "userId": "USER_004205",
+  "persona": "solo_traveler",
+  "homeCity": "Chennai",
+  "bookings": 16,
+  "favouriteDestinations": [
+   "Pondicherry",
+   "Goa",
+   "Bali",
+   "Darjeeling"
+  ]
+ },
+ {
+  "userId": "USER_004210",
+  "persona": "budget_traveler",
+  "homeCity": "Mumbai",
+  "bookings": 12,
+  "favouriteDestinations": [
+   "Ooty",
+   "Mysore"
+  ]
+ },
+ {
+  "userId": "USER_004223",
+  "persona": "family_traveler",
+  "homeCity": "Hyderabad",
+  "bookings": 9,
+  "favouriteDestinations": [
+   "Lonavala",
+   "Shimla",
+   "Delhi",
+   "Goa"
+  ]
+ },
+ {
+  "userId": "USER_004231",
+  "persona": "family_traveler",
+  "homeCity": "Bangalore",
+  "bookings": 12,
+  "favouriteDestinations": [
+   "Shimla",
+   "Udaipur",
+   "Hyderabad",
+   "Agra"
+  ]
+ },
+ {
+  "userId": "USER_004279",
+  "persona": "business_traveler",
+  "homeCity": "Bangalore",
+  "bookings": 18,
+  "favouriteDestinations": [
+   "Ahmedabad",
+   "Chennai"
+  ]
+ },
+ {
+  "userId": "USER_004288",
+  "persona": "frequent_traveler",
+  "homeCity": "Ahmedabad",
+  "bookings": 44,
+  "favouriteDestinations": [
+   "Rishikesh",
+   "Chennai",
+   "Shimla",
+   "Hyderabad",
+   "Udaipur"
+  ]
+ },
+ {
+  "userId": "USER_004295",
+  "persona": "frequent_traveler",
+  "homeCity": "Lucknow",
+  "bookings": 30,
+  "favouriteDestinations": [
+   "Chennai",
+   "Kolkata"
+  ]
+ },
+ {
+  "userId": "USER_004354",
+  "persona": "solo_traveler",
+  "homeCity": "Kolkata",
+  "bookings": 18,
+  "favouriteDestinations": [
+   "Goa",
+   "Manali",
+   "Rishikesh"
+  ]
+ },
+ {
+  "userId": "USER_004362",
+  "persona": "frequent_traveler",
+  "homeCity": "Jaipur",
+  "bookings": 49,
+  "favouriteDestinations": [
+   "Bangalore",
+   "Leh",
+   "Shimla",
+   "Mysore",
+   "Amritsar"
+  ]
+ },
+ {
+  "userId": "USER_004370",
+  "persona": "budget_traveler",
+  "homeCity": "Ahmedabad",
+  "bookings": 11,
+  "favouriteDestinations": [
+   "Mysore",
+   "Ooty",
+   "Darjeeling",
+   "Lonavala"
+  ]
+ },
+ {
+  "userId": "USER_004375",
+  "persona": "business_traveler",
+  "homeCity": "Delhi",
+  "bookings": 39,
+  "favouriteDestinations": [
+   "Bangalore",
+   "Lucknow"
+  ]
+ },
+ {
+  "userId": "USER_004378",
+  "persona": "frequent_traveler",
+  "homeCity": "Kolkata",
+  "bookings": 41,
+  "favouriteDestinations": [
+   "Udaipur",
+   "Munnar",
+   "Amritsar"
+  ]
+ },
+ {
+  "userId": "USER_004393",
+  "persona": "solo_traveler",
+  "homeCity": "Jaipur",
+  "bookings": 10,
+  "favouriteDestinations": [
+   "Manali",
+   "Bali",
+   "Darjeeling",
+   "Rishikesh",
+   "Bangkok"
+  ]
+ },
+ {
+  "userId": "USER_004413",
+  "persona": "weekend_traveler",
+  "homeCity": "Hyderabad",
+  "bookings": 16,
+  "favouriteDestinations": [
+   "Goa",
+   "Coorg",
+   "Lonavala"
+  ]
+ },
+ {
+  "userId": "USER_004419",
+  "persona": "weekend_traveler",
+  "homeCity": "Delhi",
+  "bookings": 12,
+  "favouriteDestinations": [
+   "Rishikesh",
+   "Jaipur",
+   "Udaipur",
+   "Amritsar"
+  ]
+ },
+ {
+  "userId": "USER_004430",
+  "persona": "luxury_traveler",
+  "homeCity": "Delhi",
+  "bookings": 20,
+  "favouriteDestinations": [
+   "Goa",
+   "Bangkok",
+   "Singapore"
+  ]
+ },
+ {
+  "userId": "USER_004445",
+  "persona": "family_traveler",
+  "homeCity": "Delhi",
+  "bookings": 12,
+  "favouriteDestinations": [
+   "Lucknow",
+   "Goa",
+   "Jaipur",
+   "Darjeeling",
+   "Pondicherry"
+  ]
+ },
+ {
+  "userId": "USER_004475",
+  "persona": "solo_traveler",
+  "homeCity": "Mumbai",
+  "bookings": 11,
+  "favouriteDestinations": [
+   "Coorg",
+   "Varanasi",
+   "Munnar",
+   "Leh",
+   "Udaipur"
+  ]
+ },
+ {
+  "userId": "USER_004482",
+  "persona": "luxury_traveler",
+  "homeCity": "Jaipur",
+  "bookings": 18,
+  "favouriteDestinations": [
+   "Coorg",
+   "Maldives",
+   "Dubai",
+   "London"
+  ]
+ },
+ {
+  "userId": "USER_004491",
+  "persona": "weekend_traveler",
+  "homeCity": "Delhi",
+  "bookings": 38,
+  "favouriteDestinations": [
+   "Agra",
+   "Manali",
+   "Amritsar",
+   "Jaipur",
+   "Leh"
+  ]
+ },
+ {
+  "userId": "USER_004531",
+  "persona": "luxury_traveler",
+  "homeCity": "Mumbai",
+  "bookings": 10,
+  "favouriteDestinations": [
+   "Singapore",
+   "Port Blair",
+   "Goa",
+   "London"
+  ]
+ },
+ {
+  "userId": "USER_004581",
+  "persona": "frequent_traveler",
+  "homeCity": "Kolkata",
+  "bookings": 51,
+  "favouriteDestinations": [
+   "Mysore",
+   "Goa",
+   "Pune"
+  ]
+ },
+ {
+  "userId": "USER_004583",
+  "persona": "budget_traveler",
+  "homeCity": "Ahmedabad",
+  "bookings": 13,
+  "favouriteDestinations": [
+   "Kochi",
+   "Mysore",
+   "Agra"
+  ]
+ },
+ {
+  "userId": "USER_004607",
+  "persona": "frequent_traveler",
+  "homeCity": "Bangalore",
+  "bookings": 45,
+  "favouriteDestinations": [
+   "Port Blair",
+   "Pondicherry",
+   "Agra",
+   "Goa"
+  ]
+ },
+ {
+  "userId": "USER_004629",
+  "persona": "weekend_traveler",
+  "homeCity": "Delhi",
+  "bookings": 28,
+  "favouriteDestinations": [
+   "Manali",
+   "Agra",
+   "Leh"
+  ]
+ },
+ {
+  "userId": "USER_004654",
+  "persona": "weekend_traveler",
+  "homeCity": "Hyderabad",
+  "bookings": 19,
+  "favouriteDestinations": [
+   "Coorg",
+   "Goa",
+   "Pondicherry",
+   "Mysore",
+   "Lonavala"
+  ]
+ },
+ {
+  "userId": "USER_004659",
+  "persona": "frequent_traveler",
+  "homeCity": "Chennai",
+  "bookings": 13,
+  "favouriteDestinations": [
+   "Hyderabad",
+   "Mumbai",
+   "Singapore",
+   "Ahmedabad",
+   "Manali"
+  ]
+ },
+ {
+  "userId": "USER_004702",
+  "persona": "budget_traveler",
+  "homeCity": "Kolkata",
+  "bookings": 15,
+  "favouriteDestinations": [
+   "Jaipur",
+   "Darjeeling",
+   "Varanasi"
+  ]
+ },
+ {
+  "userId": "USER_004732",
+  "persona": "weekend_traveler",
+  "homeCity": "Kolkata",
+  "bookings": 23,
+  "favouriteDestinations": [
+   "Agra",
+   "Port Blair",
+   "Varanasi",
+   "Darjeeling"
+  ]
+ },
+ {
+  "userId": "USER_004762",
+  "persona": "budget_traveler",
+  "homeCity": "Mumbai",
+  "bookings": 13,
+  "favouriteDestinations": [
+   "Kochi",
+   "Mahabaleshwar",
+   "Amritsar"
+  ]
+ },
+ {
+  "userId": "USER_004770",
+  "persona": "solo_traveler",
+  "homeCity": "Chennai",
+  "bookings": 16,
+  "favouriteDestinations": [
+   "Leh",
+   "Pondicherry"
+  ]
+ },
+ {
+  "userId": "USER_004782",
+  "persona": "business_traveler",
+  "homeCity": "Bangalore",
+  "bookings": 35,
+  "favouriteDestinations": [
+   "Chennai",
+   "Kolkata",
+   "Chandigarh",
+   "Mumbai",
+   "Ahmedabad"
+  ]
+ },
+ {
+  "userId": "USER_004786",
+  "persona": "budget_traveler",
+  "homeCity": "Kolkata",
+  "bookings": 9,
+  "favouriteDestinations": [
+   "Rishikesh",
+   "Manali",
+   "Amritsar",
+   "Shimla",
+   "Leh"
+  ]
+ },
+ {
+  "userId": "USER_004802",
+  "persona": "weekend_traveler",
+  "homeCity": "Kolkata",
+  "bookings": 38,
+  "favouriteDestinations": [
+   "Varanasi",
+   "Port Blair",
+   "Agra",
+   "Darjeeling"
+  ]
+ },
+ {
+  "userId": "USER_004916",
+  "persona": "solo_traveler",
+  "homeCity": "Hyderabad",
+  "bookings": 16,
+  "favouriteDestinations": [
+   "Leh",
+   "Bali",
+   "Udaipur",
+   "Rishikesh"
+  ]
+ },
+ {
+  "userId": "USER_004921",
+  "persona": "business_traveler",
+  "homeCity": "Bangalore",
+  "bookings": 32,
+  "favouriteDestinations": [
+   "Chandigarh",
+   "Mumbai"
+  ]
+ },
+ {
+  "userId": "USER_004923",
+  "persona": "business_traveler",
+  "homeCity": "Hyderabad",
+  "bookings": 27,
+  "favouriteDestinations": [
+   "Chennai",
+   "Mumbai",
+   "Chandigarh"
+  ]
+ },
+ {
+  "userId": "USER_004950",
+  "persona": "weekend_traveler",
+  "homeCity": "Chennai",
+  "bookings": 31,
+  "favouriteDestinations": [
+   "Mysore",
+   "Ooty",
+   "Munnar",
+   "Kochi",
+   "Coorg"
+  ]
+ }
+]

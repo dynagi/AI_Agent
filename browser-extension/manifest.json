@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "AURA Cart Assistant",
+  "version": "0.1.0",
+  "description": "Adds items from your AURA shopping list to your cart on Blinkit, Zepto, or Swiggy Instamart. Never touches payment or checkout — you always review the cart and pay yourself.",
+  "permissions": ["tabs", "storage"],
+  "host_permissions": [
+    "https://blinkit.com/*",
+    "https://www.zeptonow.com/*",
+    "https://www.swiggy.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://localhost:5173/*",
+        "http://localhost:4173/*"
+      ],
+      "js": ["content/bridge.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://blinkit.com/*"],
+      "js": ["content/safety.js", "content/sites/blinkit.js", "content/automate.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.zeptonow.com/*"],
+      "js": ["content/safety.js", "content/sites/zepto.js", "content/automate.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.swiggy.com/instamart/*"],
+      "js": ["content/safety.js", "content/sites/instamart.js", "content/automate.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "AURA Cart Assistant"
+  }
+}

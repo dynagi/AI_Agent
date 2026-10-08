@@ -1,19 +1,18 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  Timer, CalendarCheck, Rocket, Wand2, Bot, LayoutTemplate, Workflow, History, Plus, Sparkles, Mail, Calendar, FileText, ShoppingCart, IndianRupee,
+  Timer, CalendarCheck, Rocket, Wand2, Bot, LayoutTemplate, Workflow, History, Plus, Sparkles,
   Eye, Settings, ArrowRight, CheckCircle2, ShieldAlert, Zap,
 } from 'lucide-react';
-import { Hud, IconBox, PageHero, NeonButton, NeonTabs, DataTable, DemoFlag, type Tone } from '../components/aura';
+import { Hud, IconBox, PageHero, NeonButton, NeonTabs, DataTable, SyncStatus, type Tone } from '../components/aura';
 import { AutomationCard, TemplateCard, AutomationWizard, draftFromText, type Draft } from '../components/automations';
-import { automationTemplates, type Automation } from '../data/mockAutomations';
+import { automationTemplates, autoIcon, type Automation } from '../data/automations';
 import { automationsStore, runsStore, type RunLog } from '../state/stores';
 import { automationActions as act } from '../state/automationActions';
 import { usePageSearch, matches } from '../state/search';
 
 const TABS = ['My Automations', 'Templates', 'Workflows', 'History'] as const;
 type Tab = (typeof TABS)[number];
-const runIcon: Record<string, typeof Mail> = { 'Daily Email Summary': Mail, 'Calendar Reminder': Calendar, 'Auto Save Notes': FileText, 'Shopping Assistant': ShoppingCart, 'Expense Tracker': IndianRupee };
 const EXAMPLE = 'Whenever I get a travel itinerary, add it to my calendar and create a shopping list for the trip.';
 
 export default function Automations() {
@@ -25,7 +24,7 @@ export default function Automations() {
   const [tab, setTab] = useState<Tab>((TABS as readonly string[]).includes(params.get('tab') ?? '') ? (params.get('tab') as Tab) : 'My Automations');
   const [wizard, setWizard] = useState<{ draft?: Draft; edit?: Automation } | null>(null);
 
-  const mine = autos.filter((a) => !a.featured && matches(q, a.name, a.description, ...a.tags));
+  const mine = autos.filter((a) => matches(q, a.name, a.description, ...a.tags));
   const templates = automationTemplates.filter((t) => matches(q, t.name, t.description));
   const workflows = autos.filter((a) => (a.steps?.length ?? 0) > 0 || a.featured);
 
@@ -65,10 +64,10 @@ export default function Automations() {
             <div className="stack" style={{ gap: 10 }}>
               {workflows.map((a) => (
                 <div key={a.id} className="tile">
-                  <div className="row between"><b className="row"><IconBox icon={a.icon} tone={a.tone as Tone} size="sm" /> {a.name}</b><span className={`tag ${a.active ? 'green' : 'amber'}`}>{a.active ? 'Active' : 'Paused'}</span></div>
+                  <div className="row between"><b className="row"><IconBox icon={autoIcon(a.icon)} tone={a.tone as Tone} size="sm" /> {a.name}</b><span className={`tag ${a.active ? 'green' : 'amber'}`}>{a.active ? 'Active' : 'Paused'}</span></div>
                   <div className="row wrap" style={{ gap: 6, marginTop: 10 }}>
                     <span className="chip"><Zap size={13} className="c-amber" /> {a.trigger ?? (a.from ? `New in ${a.from}` : a.schedule)}</span>
-                    {(a.steps ?? [a.to ? `Send to ${a.to}` : a.description]).map((s) => <span key={s} className="row" style={{ gap: 6 }}><ArrowRight size={14} className="t-mute" /><span className="chip">{s}</span></span>)}
+                    {(a.steps ?? [a.description]).map((s) => <span key={s} className="row" style={{ gap: 6 }}><ArrowRight size={14} className="t-mute" /><span className="chip">{s}</span></span>)}
                     {a.needsApproval && <span className="row" style={{ gap: 6 }}><ArrowRight size={14} className="t-mute" /><span className="chip c-amber"><ShieldAlert size={13} /> Your approval</span></span>}
                   </div>
                 </div>
@@ -81,6 +80,7 @@ export default function Automations() {
             <DataTable<RunLog> caption="Automation run history" rows={runs} rowKey={(r) => r.id} columns={[
               { key: 'n', header: 'Automation', render: (r) => <b>{r.name}</b> },
               { key: 'w', header: 'When', render: (r) => <span className="t-sub">{r.when}</span> },
+              { key: 'r', header: 'Prepared actions', render: (r) => <span className="t-sub" style={{ whiteSpace: 'pre-line' }}>{r.summary ?? '—'}</span> },
               { key: 's', header: 'Status', render: (r) => <span className={`tag ${r.status === 'Completed' ? 'green' : r.status === 'Failed' ? 'red' : 'amber'}`}>{r.status}</span>, align: 'right' },
             ]} />
           </Hud>
@@ -93,7 +93,7 @@ export default function Automations() {
           </div>
           <div className="grid g4" style={{ gap: 12 }}>{automationTemplates.slice(0, 4).map((t) => <TemplateCard key={t.id} t={t} compact onUse={() => act.fromTemplate(t)} />)}</div>
         </Hud>
-        <DemoFlag />
+        <SyncStatus stores={[automationsStore, runsStore]} />
       </div>
 
       <div className="rail">
@@ -108,9 +108,10 @@ export default function Automations() {
         <Hud corners title={<span className="section-title" style={{ fontSize: 18 }}>Recent Runs</span>} action="View All" onAction={() => setTab('History')}>
           <div className="list">
             {runs.slice(0, 5).map((r) => {
-              const I = runIcon[r.name] ?? Workflow;
+              const I = Workflow;
               return <div className="li" key={r.id}><IconBox icon={I} tone="blue" size="sm" /><div className="grow"><div className="t-title" style={{ fontSize: 13.5 }}>{r.name}</div><div className="t-mute">{r.when}</div></div><span className={`tag ${r.status === 'Completed' ? 'green' : 'amber'}`}>{r.status}</span></div>;
             })}
+            {!runs.length && <div className="empty">No runs yet.</div>}
           </div>
         </Hud>
         <Hud corners title={<span className="section-title" style={{ fontSize: 18 }}>Quick Actions</span>}>

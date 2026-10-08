@@ -152,3 +152,20 @@
 @keyframes breathe { 0%, 100% { transform: scale(0.7); } 50% { transform: scale(1.05); } }
 @media (max-width: 1280px) { .wellness-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
 @media (max-width: 760px) { .wellness-grid { grid-template-columns: 1fr; } .wellness-grid .w-plan { grid-row: auto; } }
+
+/* ---------- AURA Wellness World (companion, vibe, quests, garden, achievements) ---------- */
+.aura-companion-blink { animation: aura-blink 4.5s ease-in-out infinite; transform-origin: center; }
+@keyframes aura-blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.12); } }
+.vibe-bar-row { display: grid; grid-template-columns: 78px 1fr 34px; align-items: center; gap: 10px; font-size: 12.5px; }
+.quest-card { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; background: rgba(0, 174, 255, 0.06); border: 1px solid var(--aura-border); cursor: pointer; text-align: left; width: 100%; transition: background var(--t-fast); }
+.quest-card:hover { background: rgba(0, 174, 255, 0.12); }
+.quest-card.done { opacity: 0.55; }
+.quest-emoji { font-size: 22px; line-height: 1; flex-shrink: 0; }
+.garden-row { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; padding: 10px 0 16px; }
+.garden-plant { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; color: var(--aura-text-2); }
+.garden-plant span.stage { font-size: 28px; line-height: 1; filter: drop-shadow(0 0 6px rgba(0, 229, 168, 0.35)); }
+.badge-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; }
+.badge-tile { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 12px 6px; border-radius: 10px; text-align: center; background: rgba(139, 92, 255, 0.06); border: 1px solid var(--aura-border); font-size: 11px; }
+.badge-tile.locked { opacity: 0.35; filter: grayscale(1); }
+.badge-tile .emoji { font-size: 24px; }
+@media (prefers-reduced-motion: reduce) { .aura-companion-blink { animation: none; } }

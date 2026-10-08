@@ -387,6 +387,7 @@ button.chip:hover { color: #fff; --bd: var(--aura-border-hi); }
 }
 .tabs { display: flex; gap: 8px; overflow-x: auto; padding: 4px 2px; scrollbar-width: none; }
 .tabs .chip { padding: 10px 16px; font-size: 13.5px; }
+.tabs.wrap { flex-wrap: wrap; overflow: visible; }
 .tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 3px; font-size: 11.5px; border: 1px solid; white-space: nowrap; }
 .tag.cyan { color: #8ef3ff; border-color: rgba(25, 230, 255, 0.4); background: rgba(25, 230, 255, 0.08); }
 .tag.blue { color: #8fd3ff; border-color: rgba(0, 175, 255, 0.45); background: rgba(0, 140, 255, 0.12); }

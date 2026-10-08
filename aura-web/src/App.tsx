@@ -1,5 +1,6 @@
-import { lazy, Suspense, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
+import { isSupabaseConfigured, supabase } from './services/supabaseClient';
 import { AuraShell } from './components/aura';
 import { Splash, Login, Signup, Personalize } from './screens/Auth';
 import Home from './screens/Home';
@@ -36,6 +37,19 @@ function Loading() {
   return <div className="row t-sub" style={{ padding: 24 }}><span className="spinner" /> <span className="hud-label">Loading module…</span></div>;
 }
 
+/** Sends signed-out visitors to the login screen. Skipped when Supabase isn't configured so the UI stays browsable. */
+function RequireAuth({ children }: { children: ReactNode }) {
+  const [state, setState] = useState<'checking' | 'in' | 'out'>(isSupabaseConfigured ? 'checking' : 'in');
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    void supabase.auth.getSession().then(({ data }) => setState(data.session ? 'in' : 'out'));
+    const { data } = supabase.auth.onAuthStateChange((_e, session) => setState(session ? 'in' : 'out'));
+    return () => data.subscription.unsubscribe();
+  }, []);
+  if (state === 'checking') return <Loading />;
+  return state === 'in' ? <>{children}</> : <Navigate to="/login" replace />;
+}
+
 export default function App() {
   return (
     <Routes>
@@ -43,7 +57,7 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
       <Route path="/onboarding" element={<Personalize />} />
-      <Route element={<AuraShell />}>
+      <Route element={<RequireAuth><AuraShell /></RequireAuth>}>
         <Route path="/dashboard" element={<Home />} />
         <Route path="/chat" element={<S><Chat /></S>} />
         <Route path="/voice" element={<S><Voice /></S>} />

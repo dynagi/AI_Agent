@@ -1,6 +1,7 @@
 import { Star, CalendarDays, Trash2, RotateCcw, Pencil, Copy, Lightbulb, Image, FileText, Plane, StickyNote, Link2, Video, Mic, File, type LucideIcon } from 'lucide-react';
 import { CategoryBadge, IconBox, MoreMenu, type Tone } from '../ui';
-import type { Memory, MemoryType } from '../../data/mockMemories';
+import type { Memory, MemoryType } from '../../data/memories';
+import { formatWhen } from '../../data/transactions';
 
 export const memoryMeta: Record<MemoryType, { icon: LucideIcon; tone: Tone; tag: Tone }> = {
   Idea: { icon: Lightbulb, tone: 'violet', tag: 'green' }, Image: { icon: Image, tone: 'blue', tag: 'blue' }, Document: { icon: FileText, tone: 'red', tag: 'cyan' },
@@ -30,7 +31,7 @@ export function MemoryCard({ m, onFavorite, onDelete, onRestore, onEdit, onCopy 
       </div>
       <span style={{ alignSelf: 'flex-start' }}><CategoryBadge label={m.type} tone={meta.tag} /></span>
       <div className="row between t-mute" style={{ marginTop: 'auto' }}>
-        <span className="row" style={{ gap: 5 }}><CalendarDays size={12} /> {m.when}</span>
+        <span className="row" style={{ gap: 5 }}><CalendarDays size={12} /> {formatWhen(m.ts)}</span>
         <span className="row" style={{ gap: 2 }}>
           {!m.deleted && (
             <button className="icon-btn bare" style={{ width: 26, height: 26, color: 'var(--aura-warning)' }} onClick={onFavorite} aria-pressed={m.favorite} aria-label={m.favorite ? 'Remove from favorites' : 'Add to favorites'}>

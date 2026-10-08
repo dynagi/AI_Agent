@@ -1,10 +1,12 @@
 import { useState, type FormEvent } from 'react';
-import { Zap, ShieldCheck, Star, LayoutGrid, Building2, ChevronRight, BadgeCheck, Brain, BarChart3, Lock, Headphones, Crown, Check, Mail, User } from 'lucide-react';
+import { Zap, ShieldCheck, Star, LayoutGrid, Building2, ChevronRight, Brain, BarChart3, Lock, Headphones, Crown, Check, Mail, User } from 'lucide-react';
 import { Hud, IconBox, NeonButton, NeonTabs, PageHero, FuturisticModal, HudInput, DataTable, toast, type Tone } from '../components/aura';
 import { PricingCard } from '../components/pricing';
-import { mockPricingPlans, planMatrix, type PlanId } from '../data/mockPricingPlans';
+import { pricingPlans, planMatrix, type PlanId } from '../data/pricingPlans';
 import { planStore } from '../state/stores';
-import { user } from '../data/mock';
+import { useUser } from '../state/user';
+import { apiSend } from '../services/api';
+import { uid } from '../state/store';
 
 const why: { icon: typeof Zap; t: string; s: string; tone: Tone }[] = [
   { icon: Brain, t: 'More Powerful Agents', s: 'Specialized AI agents for every area of your life.', tone: 'violet' },
@@ -16,31 +18,41 @@ const why: { icon: typeof Zap; t: string; s: string; tone: Tone }[] = [
 
 export default function Pricing() {
   const current = planStore.use();
+  const user = useUser();
   const [billing, setBilling] = useState<'Monthly' | 'Yearly'>('Monthly');
   const [choose, setChoose] = useState<PlanId | null>(null);
   const [busy, setBusy] = useState(false);
   const [compare, setCompare] = useState(false);
   const [sales, setSales] = useState(false);
-  const [lead, setLead] = useState({ name: user.name, email: '', size: '10-50' });
+  const [lead, setLead] = useState({ name: '', email: '', size: '10-50' });
   const yearly = billing === 'Yearly';
-  const plan = mockPricingPlans.find((p) => p.id === choose);
+  const plan = pricingPlans.find((p) => p.id === choose);
 
-  const confirm = () => {
+  /** There is no payment provider yet, so this records interest instead of changing the plan. */
+  const confirm = async () => {
     if (!plan) return;
     setBusy(true);
-    setTimeout(() => {
-      planStore.set(plan.id);
-      setBusy(false);
+    try {
+      await apiSend('PUT', `/records/plan_interest/${plan.id}`, { plan: plan.id, billing, requestedAt: new Date().toISOString() });
+      toast(plan.id === 'free' ? 'You are on the Free plan.' : `Thanks! Paid plans aren't open yet — we've saved your interest in ${plan.name}. You were not charged.`);
       setChoose(null);
-      toast(`Demo: switched to ${plan.name}. No payment was processed — no payment provider is configured.`);
-    }, 900);
+    } catch {
+      toast('Could not save your request. Please sign in and try again.');
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const submitLead = (e: FormEvent) => {
+  const submitLead = async (e: FormEvent) => {
     e.preventDefault();
     if (!/\S+@\S+\.\S+/.test(lead.email)) { toast('Enter a valid work email.'); return; }
-    setSales(false);
-    toast(`Thanks ${lead.name.split(' ')[0]} — request saved (demo). Sales would reply to ${lead.email}.`);
+    try {
+      await apiSend('PUT', `/records/sales_leads/${uid('lead')}`, { ...lead, requestedAt: new Date().toISOString() });
+      setSales(false);
+      toast('Request saved. Thanks — we will reach out at the email you gave.');
+    } catch {
+      toast('Could not save your request. Please sign in and try again.');
+    }
   };
 
   return (
@@ -62,7 +74,7 @@ export default function Pricing() {
       <div className="module">
         <div className="main">
           <div className="grid g3" style={{ alignItems: 'stretch' }}>
-            {mockPricingPlans.map((p) => <PricingCard key={p.id} plan={p} yearly={yearly} current={current === p.id} onChoose={() => setChoose(p.id)} />)}
+            {pricingPlans.map((p) => <PricingCard key={p.id} plan={p} yearly={yearly} current={current === p.id} onChoose={() => setChoose(p.id)} />)}
           </div>
         </div>
         <div className="rail">
@@ -74,9 +86,6 @@ export default function Pricing() {
           <Hud>
             <div className="row" style={{ alignItems: 'flex-start', gap: 14 }}><IconBox icon={Building2} tone="blue" size="lg" /><div><b style={{ fontSize: 16 }}>Need a Custom Plan?</b><div className="t-sub">For businesses, educators, or large teams.</div></div></div>
             <NeonButton block style={{ marginTop: 14 }} onClick={() => setSales(true)}>Contact Sales</NeonButton>
-          </Hud>
-          <Hud>
-            <div className="row" style={{ alignItems: 'flex-start', gap: 14 }}><IconBox icon={BadgeCheck} tone="amber" size="lg" /><div><b style={{ fontSize: 16 }}>30-Day Satisfaction Guarantee</b><div className="t-sub">Not happy? Get a full refund within 30 days.</div></div></div>
           </Hud>
         </div>
       </div>
@@ -94,16 +103,16 @@ export default function Pricing() {
       </Hud>
 
       {plan && (
-        <FuturisticModal title={plan.id === 'free' ? 'Switch to Free' : `Upgrade to ${plan.name}`} icon={Crown} tone="violet" onClose={() => !busy && setChoose(null)}>
+        <FuturisticModal title={plan.id === 'free' ? 'Free plan' : `Interested in ${plan.name}`} icon={Crown} tone="violet" onClose={() => !busy && setChoose(null)}>
           <div className="tile" style={{ marginBottom: 14 }}>
             <div className="row between"><b style={{ fontSize: 18 }}>{plan.name}</b><b className="c-cyan" style={{ fontSize: 18 }}>₹{(yearly ? plan.monthly * 10 : plan.monthly).toLocaleString('en-IN')} / {yearly ? 'year' : 'month'}</b></div>
             <ul style={{ margin: '10px 0 0', padding: 0, listStyle: 'none' }} className="stack">{plan.features.slice(0, 4).map((f) => <li key={f} className="row t-sub"><Check size={14} className="c-green" /> {f}</li>)}</ul>
           </div>
           <div className="row" style={{ marginBottom: 14 }}><span className="t-sub">Billing:</span><NeonTabs tabs={['Monthly', 'Yearly'] as const} value={billing} onChange={setBilling} /></div>
-          <p className="t-mute" style={{ marginBottom: 16 }}>Demo checkout — no payment provider is configured, so no card is charged. Your plan changes locally for this session.</p>
+          <p className="t-mute" style={{ marginBottom: 16 }}>Paid plans aren't available yet and no payment provider is connected, so nothing is charged. Confirming saves your interest.</p>
           <div className="row" style={{ justifyContent: 'flex-end' }}>
             <NeonButton onClick={() => setChoose(null)} disabled={busy}>Cancel</NeonButton>
-            <NeonButton variant="ai" onClick={confirm} disabled={busy}>{busy ? <span className="spinner" /> : <><Check size={16} /> Confirm</>}</NeonButton>
+            <NeonButton variant="ai" onClick={() => void confirm()} disabled={busy}>{busy ? <span className="spinner" /> : <><Check size={16} /> {plan.id === 'free' ? 'OK' : 'Notify me'}</>}</NeonButton>
           </div>
         </FuturisticModal>
       )}
@@ -121,8 +130,8 @@ export default function Pricing() {
 
       {sales && (
         <FuturisticModal title="Contact Sales" icon={Building2} onClose={() => setSales(false)}>
-          <form className="stack" style={{ gap: 12 }} onSubmit={submitLead}>
-            <HudInput label="Name" icon={User} value={lead.name} onChange={(e) => setLead({ ...lead, name: e.target.value })} />
+          <form className="stack" style={{ gap: 12 }} onSubmit={(e) => void submitLead(e)}>
+            <HudInput label="Name" icon={User} value={lead.name || user.name} onChange={(e) => setLead({ ...lead, name: e.target.value })} />
             <HudInput label="Work email" icon={Mail} type="email" value={lead.email} onChange={(e) => setLead({ ...lead, email: e.target.value })} placeholder="you@company.com" autoFocus />
             <div className="field"><label htmlFor="team-size">Team size</label>
               <select id="team-size" className="select" style={{ height: 44 }} value={lead.size} onChange={(e) => setLead({ ...lead, size: e.target.value })}>{['2-9', '10-50', '51-200', '200+'].map((o) => <option key={o}>{o}</option>)}</select>

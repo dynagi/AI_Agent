@@ -1,14 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
   Home, MessageSquare, Mic, Workflow, Scale, SquareCheck, CalendarDays, ShoppingBag, Plane, Wallet, Heart, Search,
   BrainCircuit, RefreshCcw, LayoutGrid, Settings, Bell, Crown, Menu, ChevronDown, BarChart3, HelpCircle, Network,
   type LucideIcon,
 } from 'lucide-react';
-import { ToastHost, Wave } from '../ui';
-import { StatusBadge } from './controls';
+import { ToastHost } from '../ui';
+import { pageVariants } from '../motion';
 import { SearchProvider, useSearchCtx } from '../../state/search';
-import { user } from '../../data/mock';
+import { useUser } from '../../state/user';
+import PeriodReminder from '../wellness/PeriodReminder';
+import MedicineSync from '../wellness/MedicineSync';
+import CompanionHost from './CompanionHost';
+import ScreenSync from './ScreenSync';
 
 export interface NavItem { to: string; label: string; icon: LucideIcon }
 
@@ -95,7 +100,7 @@ export function AuraSidebar({ open }: { open: boolean }) {
       <div className="pro-card">
         <b><Crown size={17} className="c-amber" style={{ filter: 'drop-shadow(0 0 5px var(--aura-warning))' }} /> AURA PRO</b>
         Unlock advanced agents and automation.
-        <button className="btn primary sm block" style={{ marginTop: 10 }} onClick={() => nav('/pricing')}>Upgrade</button>
+        <button className="btn primary sm block" style={{ marginTop: 10 }} onClick={() => nav('/pricing')}>View plans</button>
       </div>
     </aside>
   );
@@ -103,6 +108,7 @@ export function AuraSidebar({ open }: { open: boolean }) {
 
 export function AuraTopbar({ onMenu, onPalette }: { onMenu: () => void; onPalette: () => void }) {
   const now = useClock();
+  const user = useUser();
   const nav = useNavigate();
   const loc = useLocation();
   const { query: q, setQuery: setQ, local } = useSearchCtx();
@@ -117,28 +123,16 @@ export function AuraTopbar({ onMenu, onPalette }: { onMenu: () => void; onPalett
         <button type="button" className="kbd" onClick={onPalette} aria-label="Open command palette">Ctrl + K</button>
       </form>
       <div className="topbar-right">
-        {base === '/dashboard' && <div className="sys-status">
-          <span className="ring" aria-hidden />
-          <div>
-            <div className="hud-label" style={{ color: 'var(--aura-text-2)', fontSize: 9.5 }}>System status</div>
-            <Wave bars={16} idle />
-          </div>
-          <div className="stack" style={{ gap: 3 }}>
-            <StatusBadge status="online" label="Online" />
-            <StatusBadge status="active" label="All Agents Active" pulse={false} />
-          </div>
-        </div>}
         <div className="clock">
           {now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
           <br />
           <b>{now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</b>
         </div>
-        <button className="icon-btn bare" aria-label="Notifications, 3 unread">
+        <button className="icon-btn bare" aria-label="Notifications" onClick={() => nav('/chat?q=' + encodeURIComponent('What needs my attention today?'))}>
           <Bell size={21} />
-          <span className="badge-dot">3</span>
         </button>
         <button className="user-chip" style={{ background: 'none', border: 0 }} onClick={() => nav('/settings')} aria-label="Account settings">
-          <div className="avatar"><img src={user.avatar} alt="" /></div>
+          <div className="avatar">{user.avatar ? <img src={user.avatar} alt="" referrerPolicy="no-referrer" /> : user.initials}</div>
           <div className="who" style={{ lineHeight: 1.3, textAlign: 'left' }}>
             <div className="t-title">{user.name}</div>
             <div className="t-sub">{user.plan}</div>
@@ -194,6 +188,7 @@ export default function AuraShell() {
   const loc = useLocation();
   const [open, setOpen] = useState(false);
   const [palette, setPalette] = useState(false);
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     setOpen(false);
@@ -217,8 +212,18 @@ export default function AuraShell() {
       <AuraSidebar open={open} />
       <div className="main">
         <AuraTopbar onMenu={() => setOpen(true)} onPalette={() => setPalette(true)} />
-        <main className="content page-enter" key={loc.pathname} id="main">
-          <Outlet />
+        <main className="content" id="main">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={loc.pathname}
+              variants={pageVariants}
+              initial={reduceMotion ? false : 'initial'}
+              animate="animate"
+              exit="exit"
+            >
+              <Outlet />
+            </motion.div>
+          </AnimatePresence>
         </main>
       </div>
       <nav className="bottom-nav" aria-label="Mobile">
@@ -229,6 +234,10 @@ export default function AuraShell() {
         <button onClick={() => setOpen(true)}><LayoutGrid size={21} /> More</button>
       </nav>
       {palette && <CommandPalette onClose={() => setPalette(false)} />}
+      <PeriodReminder />
+      <MedicineSync />
+      <CompanionHost />
+      <ScreenSync />
       <ToastHost />
     </div>
     </SearchProvider>

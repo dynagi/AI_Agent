@@ -1,7 +1,7 @@
 import { Check, Crown } from 'lucide-react';
 import { IconBox, toneHex } from '../ui';
 import { NeonButton } from '../aura';
-import type { PricingPlan } from '../../data/mockPricingPlans';
+import type { PricingPlan } from '../../data/pricingPlans';
 
 export function PricingCard({ plan, yearly, current, onChoose }: { plan: PricingPlan; yearly: boolean; current: boolean; onChoose: () => void }) {
   const price = yearly ? plan.monthly * 10 : plan.monthly;

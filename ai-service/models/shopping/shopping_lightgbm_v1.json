@@ -1,0 +1,515 @@
+{
+ "model_version": "shopping_lightgbm_v1",
+ "horizon_days": 7.0,
+ "features": [
+  "n_orders",
+  "n_orders_30d",
+  "n_orders_90d",
+  "days_since_last_order",
+  "mean_gap",
+  "median_gap",
+  "std_gap",
+  "gap_ratio",
+  "due_in_days",
+  "last_qty",
+  "mean_qty",
+  "days_since_first_seen",
+  "n_search_3d",
+  "n_search_14d",
+  "n_view_14d",
+  "n_cart_7d",
+  "n_wish_30d",
+  "n_not_interested_30d",
+  "days_since_last_interaction",
+  "category",
+  "catalog_cycle",
+  "log_catalog_price",
+  "item_known",
+  "global_popularity",
+  "global_median_gap",
+  "cat_share",
+  "cat_days_since_last_order",
+  "u_orders_total",
+  "u_order_days_30d",
+  "u_days_since_last_order",
+  "u_mean_order_gap",
+  "u_n_items",
+  "dow",
+  "dom"
+ ],
+ "categories": [
+  "baby",
+  "bakery",
+  "beverages",
+  "books",
+  "dairy",
+  "electronics",
+  "fashion",
+  "fruits_vegetables",
+  "health",
+  "home",
+  "household",
+  "other",
+  "personal_care",
+  "pet",
+  "snacks",
+  "staples"
+ ],
+ "params": {
+  "objective": "binary",
+  "learning_rate": 0.05,
+  "num_leaves": 63,
+  "min_data_in_leaf": 100,
+  "feature_fraction": 0.8,
+  "bagging_fraction": 0.8,
+  "bagging_freq": 1,
+  "lambda_l2": 1.0,
+  "verbose": -1,
+  "seed": 42,
+  "num_threads": 0
+ },
+ "rounds": 125,
+ "stats": {
+  "items": {
+   "apples": {
+    "popularity": 0.5468,
+    "median_gap": 6.0
+   },
+   "atta": {
+    "popularity": 0.4688,
+    "median_gap": 19.0
+   },
+   "baby food": {
+    "popularity": 0.0828,
+    "median_gap": 10.0
+   },
+   "baby wipes": {
+    "popularity": 0.1028,
+    "median_gap": 9.0
+   },
+   "bananas": {
+    "popularity": 0.5384,
+    "median_gap": 3.0
+   },
+   "batteries": {
+    "popularity": 0.254,
+    "median_gap": 137.0
+   },
+   "bedsheet": {
+    "popularity": 0.3076,
+    "median_gap": 131.5
+   },
+   "biscuits": {
+    "popularity": 0.4296,
+    "median_gap": 6.0
+   },
+   "books": {
+    "popularity": 0.4052,
+    "median_gap": 135.5
+   },
+   "bread": {
+    "popularity": 0.362,
+    "median_gap": 3.0
+   },
+   "butter": {
+    "popularity": 0.6576,
+    "median_gap": 14.0
+   },
+   "chips": {
+    "popularity": 0.4172,
+    "median_gap": 5.0
+   },
+   "chocolates": {
+    "popularity": 0.4088,
+    "median_gap": 8.0
+   },
+   "coffee": {
+    "popularity": 0.4956,
+    "median_gap": 24.0
+   },
+   "cooking oil": {
+    "popularity": 0.4732,
+    "median_gap": 19.0
+   },
+   "curd": {
+    "popularity": 0.6592,
+    "median_gap": 3.0
+   },
+   "dal": {
+    "popularity": 0.4692,
+    "median_gap": 15.0
+   },
+   "deodorant": {
+    "popularity": 0.6184,
+    "median_gap": 35.0
+   },
+   "detergent": {
+    "popularity": 0.5612,
+    "median_gap": 23.0
+   },
+   "diapers": {
+    "popularity": 0.0968,
+    "median_gap": 6.0
+   },
+   "dishwash": {
+    "popularity": 0.5472,
+    "median_gap": 19.0
+   },
+   "dog food": {
+    "popularity": 0.1156,
+    "median_gap": 20.0
+   },
+   "earbuds": {
+    "popularity": 0.2468,
+    "median_gap": 120.5
+   },
+   "eggs": {
+    "popularity": 0.6544,
+    "median_gap": 4.0
+   },
+   "face wash": {
+    "popularity": 0.618,
+    "median_gap": 31.0
+   },
+   "floor cleaner": {
+    "popularity": 0.5488,
+    "median_gap": 27.5
+   },
+   "garbage bags": {
+    "popularity": 0.5428,
+    "median_gap": 24.0
+   },
+   "green vegetables": {
+    "popularity": 0.534,
+    "median_gap": 3.0
+   },
+   "ice cream": {
+    "popularity": 0.4336,
+    "median_gap": 9.0
+   },
+   "instant noodles": {
+    "popularity": 0.404,
+    "median_gap": 7.0
+   },
+   "jeans": {
+    "popularity": 0.4512,
+    "median_gap": 124.0
+   },
+   "juice": {
+    "popularity": 0.4964,
+    "median_gap": 7.0
+   },
+   "kurta": {
+    "popularity": 0.4512,
+    "median_gap": 126.0
+   },
+   "led bulb": {
+    "popularity": 0.3128,
+    "median_gap": 131.0
+   },
+   "medicines": {
+    "popularity": 0.0896,
+    "median_gap": 25.0
+   },
+   "milk": {
+    "popularity": 0.6452,
+    "median_gap": 2.0
+   },
+   "multivitamins": {
+    "popularity": 0.0844,
+    "median_gap": 25.0
+   },
+   "onions": {
+    "popularity": 0.5284,
+    "median_gap": 5.0
+   },
+   "paneer": {
+    "popularity": 0.66,
+    "median_gap": 6.0
+   },
+   "phone charger": {
+    "popularity": 0.2644,
+    "median_gap": 151.0
+   },
+   "potatoes": {
+    "popularity": 0.546,
+    "median_gap": 6.0
+   },
+   "power bank": {
+    "popularity": 0.2512,
+    "median_gap": 146.0
+   },
+   "protein powder": {
+    "popularity": 0.0868,
+    "median_gap": 33.0
+   },
+   "rice": {
+    "popularity": 0.4612,
+    "median_gap": 21.0
+   },
+   "sanitary pads": {
+    "popularity": 0.6244,
+    "median_gap": 22.0
+   },
+   "shampoo": {
+    "popularity": 0.6204,
+    "median_gap": 31.0
+   },
+   "sneakers": {
+    "popularity": 0.4628,
+    "median_gap": 134.0
+   },
+   "soap": {
+    "popularity": 0.6148,
+    "median_gap": 20.0
+   },
+   "soft drinks": {
+    "popularity": 0.496,
+    "median_gap": 5.0
+   },
+   "spices": {
+    "popularity": 0.4644,
+    "median_gap": 34.0
+   },
+   "sugar": {
+    "popularity": 0.4636,
+    "median_gap": 23.0
+   },
+   "t-shirt": {
+    "popularity": 0.4564,
+    "median_gap": 126.0
+   },
+   "tea": {
+    "popularity": 0.4952,
+    "median_gap": 24.0
+   },
+   "tissues": {
+    "popularity": 0.5464,
+    "median_gap": 16.0
+   },
+   "toilet cleaner": {
+    "popularity": 0.5464,
+    "median_gap": 27.0
+   },
+   "tomatoes": {
+    "popularity": 0.542,
+    "median_gap": 3.0
+   },
+   "toothpaste": {
+    "popularity": 0.6292,
+    "median_gap": 28.0
+   }
+  },
+  "popular_by_category": {
+   "baby": [
+    "baby wipes",
+    "diapers",
+    "baby food"
+   ],
+   "bakery": [
+    "bread"
+   ],
+   "beverages": [
+    "juice",
+    "soft drinks",
+    "coffee",
+    "tea"
+   ],
+   "books": [
+    "books"
+   ],
+   "dairy": [
+    "paneer",
+    "curd",
+    "butter",
+    "eggs",
+    "milk"
+   ],
+   "electronics": [
+    "phone charger",
+    "batteries",
+    "power bank",
+    "earbuds"
+   ],
+   "fashion": [
+    "sneakers",
+    "t-shirt",
+    "kurta",
+    "jeans"
+   ],
+   "fruits_vegetables": [
+    "apples",
+    "potatoes",
+    "tomatoes",
+    "bananas",
+    "green vegetables",
+    "onions"
+   ],
+   "health": [
+    "medicines",
+    "protein powder",
+    "multivitamins"
+   ],
+   "home": [
+    "led bulb",
+    "bedsheet"
+   ],
+   "household": [
+    "detergent",
+    "floor cleaner",
+    "dishwash",
+    "tissues",
+    "toilet cleaner",
+    "garbage bags"
+   ],
+   "personal_care": [
+    "toothpaste",
+    "sanitary pads",
+    "shampoo",
+    "deodorant",
+    "face wash",
+    "soap"
+   ],
+   "pet": [
+    "dog food"
+   ],
+   "snacks": [
+    "ice cream",
+    "biscuits",
+    "chips",
+    "chocolates",
+    "instant noodles"
+   ],
+   "staples": [
+    "cooking oil",
+    "dal",
+    "atta",
+    "spices",
+    "sugar",
+    "rice"
+   ]
+  }
+ },
+ "metrics": {
+  "test_auc": 0.9434,
+  "test_logloss": 0.2508,
+  "test_positive_rate": 0.2439,
+  "ranking": {
+   "model": {
+    "precision@5": 0.8405,
+    "recall@5": 0.4837,
+    "hit@5": 0.9971,
+    "snapshots": 1028
+   },
+   "most_frequent": {
+    "precision@5": 0.8232,
+    "recall@5": 0.4693,
+    "hit@5": 0.9942,
+    "snapshots": 1028
+   },
+   "most_overdue": {
+    "precision@5": 0.3375,
+    "recall@5": 0.1809,
+    "hit@5": 0.8414,
+    "snapshots": 1028
+   }
+  },
+  "auc_baselines": {
+   "most_frequent": 0.9239,
+   "most_overdue": 0.7636
+  },
+  "slow_items": {
+   "rows": 15183,
+   "positive_rate": 0.2582,
+   "auc": {
+    "model": 0.7477,
+    "most_frequent": 0.6528,
+    "most_overdue": 0.6068
+   },
+   "ranking": {
+    "model": {
+     "precision@3": 0.5244,
+     "recall@3": 0.4409,
+     "hit@3": 0.8958,
+     "snapshots": 998
+    },
+    "most_frequent": {
+     "precision@3": 0.4242,
+     "recall@3": 0.3566,
+     "hit@3": 0.8046,
+     "snapshots": 998
+    },
+    "most_overdue": {
+     "precision@3": 0.3547,
+     "recall@3": 0.2865,
+     "hit@3": 0.7335,
+     "snapshots": 998
+    }
+   }
+  }
+ },
+ "trained_on": "2500 synthetic users (D:\\Aura\\synthetic_data\\shopping)",
+ "trained_at": "2026-10-01T05:04:43Z",
+ "top_features": [
+  [
+   "n_orders_90d",
+   1161778.1
+  ],
+  [
+   "due_in_days",
+   543680.3
+  ],
+  [
+   "mean_gap",
+   425022.5
+  ],
+  [
+   "n_orders_30d",
+   385854.4
+  ],
+  [
+   "days_since_last_order",
+   244008.0
+  ],
+  [
+   "global_median_gap",
+   124201.6
+  ],
+  [
+   "n_orders",
+   117488.8
+  ],
+  [
+   "catalog_cycle",
+   102757.1
+  ],
+  [
+   "median_gap",
+   77727.8
+  ],
+  [
+   "days_since_last_interaction",
+   48656.7
+  ],
+  [
+   "category",
+   41712.6
+  ],
+  [
+   "gap_ratio",
+   27243.5
+  ],
+  [
+   "u_mean_order_gap",
+   20300.9
+  ],
+  [
+   "u_days_since_last_order",
+   19422.7
+  ],
+  [
+   "u_orders_total",
+   9258.6
+  ]
+ ]
+}

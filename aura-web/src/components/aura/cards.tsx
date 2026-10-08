@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react';
 import { ChevronRight, MoreVertical, TrendingDown, TrendingUp, type LucideIcon } from 'lucide-react';
+import { motion, useReducedMotion } from 'framer-motion';
 import { Hud, IconBox, Bar, toneHex, type Tone } from '../ui';
 import { StatusBadge, type StatusKind } from './controls';
-import type { Agent } from '../../data/mock';
+import { liftable } from '../motion';
+import type { Agent } from '../../data/agents';
 
 /* Blue base art → tint per agent tone (hue-rotate from ~210°) */
 export const hueFor: Record<Tone, number> = { blue: 0, cyan: -25, teal: -55, green: -55, violet: 55, magenta: 105, pink: 105, amber: 195, red: 150 };
@@ -32,6 +34,7 @@ export function AgentAvatar({ tone = 'blue', size = 52, ring = true }: { tone?: 
 export function MetricCard({ icon, tone = 'cyan', value, label, delta, down, extra, onClick }: {
   icon: LucideIcon; tone?: Tone; value: ReactNode; label: string; delta?: string; down?: boolean; extra?: ReactNode; onClick?: () => void;
 }) {
+  const reduceMotion = useReducedMotion();
   const body = (
     <>
       <IconBox icon={icon} tone={tone} size="lg" round />
@@ -49,7 +52,7 @@ export function MetricCard({ icon, tone = 'cyan', value, label, delta, down, ext
     </>
   );
   return onClick ? (
-    <button className="hud row" style={{ textAlign: 'left', gap: 14 }} onClick={onClick}>{body}</button>
+    <motion.button className="hud row" style={{ textAlign: 'left', gap: 14 }} onClick={onClick} {...(reduceMotion ? {} : liftable)}>{body}</motion.button>
   ) : (
     <div className="hud row" style={{ gap: 14 }}>{body}</div>
   );
@@ -58,18 +61,19 @@ export function MetricCard({ icon, tone = 'cyan', value, label, delta, down, ext
 /* ---------- AgentCard ---------- */
 export function AgentCard({ agent, compact, progress, onClick, selected }: { agent: Agent; compact?: boolean; progress?: number; onClick?: () => void; selected?: boolean }) {
   const status = agent.status as StatusKind;
+  const reduceMotion = useReducedMotion();
   if (compact) {
     return (
-      <button className="li" onClick={onClick} style={{ background: 'none', border: 0, width: '100%', textAlign: 'left' }}>
+      <motion.button className="li" onClick={onClick} style={{ background: 'none', border: 0, width: '100%', textAlign: 'left' }} {...(reduceMotion ? {} : liftable)}>
         <IconBox icon={agent.icon} tone={agent.tone} size="sm" />
         <div className="grow"><div className="t-title">{agent.name}</div><div className="t-sub ellipsis">{agent.task}</div></div>
         <StatusBadge status={status} label="" />
         <MoreVertical size={15} className="t-mute" />
-      </button>
+      </motion.button>
     );
   }
   return (
-    <button className="tile row" onClick={onClick} style={{ textAlign: 'left', gap: 12, ['--bd' as string]: selected ? toneHex[agent.tone] : undefined, width: '100%' }}>
+    <motion.button className="tile row" onClick={onClick} style={{ textAlign: 'left', gap: 12, ['--bd' as string]: selected ? toneHex[agent.tone] : undefined, width: '100%' }} {...(reduceMotion ? {} : liftable)}>
       <IconBox icon={agent.icon} tone={agent.tone} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div className="t-title">{agent.name}</div>
@@ -78,21 +82,22 @@ export function AgentCard({ agent, compact, progress, onClick, selected }: { age
         {progress !== undefined && <div style={{ marginTop: 6 }}><Bar value={progress} tone={agent.tone} /></div>}
       </div>
       <AgentAvatar tone={agent.tone} size={46} />
-    </button>
+    </motion.button>
   );
 }
 
 /* ---------- InsightCard ---------- */
 export function InsightCard({ icon, tone = 'cyan', title, body, onClick }: { icon: LucideIcon; tone?: Tone; title: string; body: string; onClick?: () => void }) {
+  const reduceMotion = useReducedMotion();
   return (
-    <button className="tile row" onClick={onClick} style={{ textAlign: 'left', width: '100%', gap: 14, padding: 14, ['--bd' as string]: `${toneHex[tone]}88` }}>
+    <motion.button className="tile row" onClick={onClick} style={{ textAlign: 'left', width: '100%', gap: 14, padding: 14, ['--bd' as string]: `${toneHex[tone]}88` }} {...(reduceMotion ? {} : liftable)}>
       <IconBox icon={icon} tone={tone} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div className="t-title">{title}</div>
         <div className="t-sub">{body}</div>
       </div>
       <span className="icon-btn" style={{ width: 30, height: 30 }} aria-hidden><ChevronRight size={16} /></span>
-    </button>
+    </motion.button>
   );
 }
 
@@ -107,26 +112,34 @@ export function ActionCard({ icon, label, tone = 'blue', onClick }: { icon: Luci
 }
 
 /* ---------- ChatMessage ---------- */
+const messageMotion = {
+  initial: { opacity: 0, y: 14, scale: 0.985 },
+  animate: { opacity: 1, y: 0, scale: 1 },
+  transition: { type: 'spring' as const, stiffness: 380, damping: 32, mass: 0.7 },
+};
+
 export function ChatMessage({ role, time, children, wide }: { role: 'aura' | 'user'; time?: string; children: ReactNode; wide?: boolean }) {
+  const reduceMotion = useReducedMotion();
+  const motionProps = reduceMotion ? {} : messageMotion;
   if (role === 'user') {
     return (
-      <div className="row fade-in" style={{ justifyContent: 'flex-end', alignItems: 'flex-start' }}>
+      <motion.div className="row" style={{ justifyContent: 'flex-end', alignItems: 'flex-start' }} {...motionProps}>
         <div style={{ maxWidth: 560 }}>
           <div className="tile" style={{ padding: '14px 18px', fontSize: 15, ['--bd' as string]: 'var(--aura-primary-bright)', ['--fill' as string]: 'linear-gradient(90deg, rgba(0,90,200,0.55), rgba(0,120,230,0.35))', filter: 'drop-shadow(0 0 10px rgba(0,175,255,0.45))' }}>{children}</div>
           {time && <div className="t-mute" style={{ textAlign: 'right', marginTop: 4 }}>{time}</div>}
         </div>
         <div className="avatar hide-sm">S</div>
-      </div>
+      </motion.div>
     );
   }
   return (
-    <div className="row fade-in" style={{ alignItems: 'flex-start', gap: 14 }}>
+    <motion.div className="row" style={{ alignItems: 'flex-start', gap: 14 }} {...motionProps}>
       <div className="hud-frame chat-face hide-sm"><img src="/aura/chat-face.jpg" alt="" /></div>
       <div style={{ flex: 1, minWidth: 0, maxWidth: wide ? undefined : 780 }}>
         {children}
         {time && <div className="t-mute" style={{ marginTop: 5 }}>{time}</div>}
       </div>
-    </div>
+    </motion.div>
   );
 }
 

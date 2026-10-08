@@ -1,0 +1,99 @@
+{
+  "synthetic_data": true,
+  "real_person_data": false,
+  "generated_for": "ML research and development",
+  "domain": "travel",
+  "random_seed": 42,
+  "n_users": 5000,
+  "start_date": "2025-01-01",
+  "end_date": "2026-09-01",
+  "apps": [
+    "MakeMyTrip",
+    "Booking.com",
+    "Airbnb",
+    "Goibibo",
+    "Cleartrip",
+    "IRCTC"
+  ],
+  "actions": [
+    "search",
+    "flight_view",
+    "hotel_view",
+    "price_check",
+    "wishlist",
+    "booking",
+    "cancel"
+  ],
+  "travel_types": [
+    "business",
+    "leisure",
+    "family",
+    "solo",
+    "weekend",
+    "holiday"
+  ],
+  "booking_types": [
+    "flight+hotel",
+    "train+hotel",
+    "flight",
+    "train",
+    "hotel"
+  ],
+  "personas": {
+    "business_traveler": {
+      "share": 0.12,
+      "trips": 10.0,
+      "k": 3.5,
+      "lead": 7,
+      "pc": 0.6
+    },
+    "frequent_traveler": {
+      "share": 0.1,
+      "trips": 9.0,
+      "k": 2.5,
+      "lead": 15,
+      "pc": 1.0
+    },
+    "budget_traveler": {
+      "share": 0.2,
+      "trips": 3.0,
+      "k": 1.8,
+      "lead": 25,
+      "pc": 3.0
+    },
+    "luxury_traveler": {
+      "share": 0.08,
+      "trips": 4.0,
+      "k": 2.0,
+      "lead": 40,
+      "pc": 0.3
+    },
+    "weekend_traveler": {
+      "share": 0.15,
+      "trips": 6.0,
+      "k": 2.5,
+      "lead": 10,
+      "pc": 1.2
+    },
+    "family_traveler": {
+      "share": 0.18,
+      "trips": 2.5,
+      "k": 1.8,
+      "lead": 45,
+      "pc": 1.8
+    },
+    "solo_traveler": {
+      "share": 0.17,
+      "trips": 4.0,
+      "k": 2.0,
+      "lead": 18,
+      "pc": 1.5
+    }
+  },
+  "split": {
+    "train": 0.7,
+    "validation": 0.15,
+    "test": 0.15,
+    "method": "chronological on snapshot_timestamp"
+  }
+}

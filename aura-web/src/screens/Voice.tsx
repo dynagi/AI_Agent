@@ -1,38 +1,39 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  AudioLines, CalendarDays, Utensils, Plane, Mail, FileText, MapPin, Target, Globe, Gauge, Volume2, VolumeX, ChevronRight, Mic,
-  X, Send, Sun, Radar, Workflow, Grid2x2, HelpCircle, SquareCheck, MessageSquare, Camera, Keyboard, Settings, Lightbulb,
+  AudioLines, CalendarDays, Plane, Target, Volume2, VolumeX, ChevronRight, Mic, Wallet, ShoppingCart,
+  X, Send, Sun, Radar, Workflow, Grid2x2, HelpCircle, SquareCheck, Keyboard, Settings, Lightbulb, Cpu,
 } from 'lucide-react';
-import { AuraAvatar, Hud, Wave, StatusBadge, VoiceVisualizer, NeonButton, type AuraState } from '../components/aura';
-import { browserVoice } from '../services/voice';
-import { user } from '../data/mock';
+import { AuraAvatar, Hud, Wave, StatusBadge, VoiceVisualizer, NeonButton, Toggle, type AuraState } from '../components/aura';
+import { browserVoice, serverVoice } from '../services/voice';
+import { handleUtterance } from '../services/companion';
+import { requestOverlayPermission, setWakeEnabled, wakeStore, wakeSupported } from '../services/wake';
+import { useUser } from '../state/user';
 
 const commands = [
-  [CalendarDays, 'Plan my day'], [Utensils, 'Find best food nearby'], [Plane, 'Book a flight to Goa'], [Mail, 'Summarize my emails'],
-  [FileText, 'Prepare for my interview'], [CalendarDays, "What's on my calendar?"], [MapPin, 'Give me a travel plan'], [Target, 'Help me focus'],
+  [CalendarDays, 'Plan my day'], [CalendarDays, "What's on my calendar?"], [Wallet, 'Review my budget'], [ShoppingCart, 'Find the best price for wireless earbuds'],
+  [Plane, 'Plan a weekend trip'], [Target, 'Help me focus'],
 ] as const;
 
 const understands = [[Sun, 'Natural Conversation'], [Radar, 'Context Awareness'], [Workflow, 'Multi-Agent Actions'], [Grid2x2, 'App Integration'], [HelpCircle, 'Follow-up Questions']] as const;
 
 const suggested = [
-  [CalendarDays, 'Plan my day'], [Plane, 'Find travel options'], [SquareCheck, 'Create a task'], [Target, 'Show my goals'],
-  [Utensils, 'Order lunch for me'], [Mail, 'Summarize emails'], [MessageSquare, 'Read my messages'], [Camera, 'Open camera'],
+  [CalendarDays, 'Plan my day'], [Plane, 'Find travel options'], [SquareCheck, 'What tasks are due today?'], [Target, 'What should I focus on?'],
 ] as const;
-
-const settings = [[Globe, 'Language', 'English'], [AudioLines, 'Voice', 'AURA (Default)'], [Gauge, 'Speed', 'Normal'], [Volume2, 'Wake Word', 'Hey AURA']] as const;
 
 interface Line { who: 'You' | 'AURA'; text: string; t: string }
 
 export default function Voice() {
   const nav = useNavigate();
+  const user = useUser();
   const [state, setState] = useState<AuraState>('idle');
+  const wake = wakeStore.use();
   const [muted, setMuted] = useState(false);
   const [draft, setDraft] = useState('');
-  const [lines, setLines] = useState<Line[]>([
-    { who: 'You', text: 'I have an interview tomorrow in Bangalore. Help me plan everything.', t: '00:04' },
-    { who: 'AURA', text: "Got it. I'll create a complete plan for your interview, including travel, preparation time, and checklist.", t: '00:06' },
-  ]);
+  const [lines, setLines] = useState<Line[]>([]);
+  const [error, setError] = useState('');
+  const mutedRef = useRef(false);
+  mutedRef.current = muted;
   const stopRef = useRef<(() => void) | null>(null);
   const started = useRef(Date.now());
   const stamp = () => {
@@ -40,15 +41,27 @@ export default function Voice() {
     return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
   };
 
-  const respond = (text: string) => {
+  const turn = useRef(0);
+  const respond = async (text: string) => {
+    const mine = ++turn.current; // a newer command replaces this one: its reply is shown but not spoken
+    serverVoice.stop();
     setState('thinking');
-    setTimeout(() => {
-      const reply = `Understood — "${text}". I'm coordinating the right agents and will show you options before anything is executed.`;
+    setError('');
+    try {
+      // Same fast brain as the companion orb: simple things are understood on the phone, the rest takes one short model call.
+      const reply = await handleUtterance(text, (path, opts) => nav(path, opts));
+      if (mine !== turn.current) return; // a newer command replaced this one
+      if (!reply) { setState('idle'); return; }
       setLines((l) => [...l, { who: 'AURA', text: reply, t: stamp() }]);
+      if (mutedRef.current) { setState('idle'); return; }
       setState('speaking');
-      if (!muted) browserVoice.speak(reply);
-      setTimeout(() => setState('idle'), 2600);
-    }, 1100);
+      await serverVoice.speak(reply);
+      if (mine === turn.current) setState('idle');
+    } catch (e) {
+      if (mine !== turn.current) return;
+      setState('idle');
+      setError(e instanceof Error && /bearer|401/i.test(e.message) ? 'Sign in to talk to AURA.' : 'AURA could not respond right now. Please try again.');
+    }
   };
 
   const commit = (text: string) => {
@@ -56,7 +69,7 @@ export default function Voice() {
     stopRef.current?.();
     setLines((l) => [...l, { who: 'You', text, t: stamp() }]);
     setDraft('');
-    respond(text);
+    void respond(text);
   };
 
   const toggleListen = () => {
@@ -71,7 +84,7 @@ export default function Voice() {
     );
   };
 
-  const cancel = () => { stopRef.current?.(); setState('idle'); setDraft(''); };
+  const cancel = () => { stopRef.current?.(); serverVoice.stop(); setState('idle'); setDraft(''); };
   const listening = state === 'listening';
   const status = { listening: "I'm listening…", thinking: 'Thinking…', speaking: 'Speaking…' } as Partial<Record<AuraState, string>>;
 
@@ -84,11 +97,29 @@ export default function Voice() {
           <AudioLines size={22} className="c-cyan" />
         </div>
         <div className="row">
-          <span className="pill-status"><span className="dot pulse" /> Online</span>
-          <button className="icon-btn" aria-label="Voice settings" onClick={() => nav('/settings')}><Settings size={18} /></button>
+                    <button className="icon-btn" aria-label="Voice settings" onClick={() => nav('/settings')}><Settings size={18} /></button>
         </div>
       </div>
 
+      {wakeSupported && (
+        <div className="tile row" style={{ gap: 12, margin: '12px 0', padding: '12px 16px', alignItems: 'center' }}>
+          <Mic size={20} className="c-cyan" />
+          <div className="grow">
+            <b>"Hey Aura" wake word</b>
+            <div className="t-sub" style={{ fontSize: 12 }}>
+              {wake.error || (wake.enabled
+                ? 'On. Say "Hey Aura" from any screen, pause, then your command. A small panel answers; the app stays closed.'
+                : 'Off. Turn on to call AURA by voice without opening the app (listens on this phone only).')}
+            </div>
+            {wake.enabled && wake.surface === null && (
+              <button className="link c-blue" style={{ background: 'none', border: 0, padding: 0, fontSize: 12, textAlign: 'left' }} onClick={requestOverlayPermission}>
+                The panel can't appear over other apps yet: allow "Display over other apps" (or turn on AURA in Accessibility). Until then it answers by voice only.
+              </button>
+            )}
+          </div>
+          <Toggle on={wake.enabled} label="Hey Aura wake word" onChange={(v) => void setWakeEnabled(v)} />
+        </div>
+      )}
       <div className="voice-grid">
         <div className="stack">
           <Hud corners title={<span className="hud-label" style={{ fontSize: 13 }}>Voice Commands</span>} icon={AudioLines}>
@@ -127,7 +158,7 @@ export default function Voice() {
           </div>
           <div className="row voice-actions" style={{ gap: 14 }}>
             <NeonButton variant="danger" onClick={cancel}><X size={22} /> Cancel</NeonButton>
-            <NeonButton onClick={() => setMuted((m) => !m)} aria-pressed={muted}>{muted ? <VolumeX size={20} /> : <Volume2 size={20} />} {muted ? 'Muted' : 'Mute'}</NeonButton>
+            <NeonButton onClick={() => { if (!muted) serverVoice.stop(); setMuted((m) => !m); }} aria-pressed={muted}>{muted ? <VolumeX size={20} /> : <Volume2 size={20} />} {muted ? 'Muted' : 'Mute'}</NeonButton>
             <NeonButton onClick={() => nav('/chat')}><Keyboard size={20} /> Text</NeonButton>
             <NeonButton variant="success" onClick={() => commit(draft)} disabled={!draft}><Send size={20} /> Send</NeonButton>
           </div>
@@ -137,18 +168,25 @@ export default function Voice() {
           <Hud corners title={<span className="row hud-label" style={{ fontSize: 13 }}><span className="dot cyan pulse" /> Real-time Listening</span>}>
             <VoiceVisualizer active={listening || state === 'speaking'} label={listening ? 'Listening…' : state === 'speaking' ? 'Speaking…' : 'Standby'} />
           </Hud>
-          <Hud corners title={<span className="hud-label" style={{ fontSize: 13 }}>Speech Settings</span>}>
+          <Hud corners title={<span className="hud-label" style={{ fontSize: 13 }}>Speech</span>}>
             <div className="list">
-              {settings.map(([I, k, v]) => (
-                <button key={k} className="li" style={{ background: 'none', border: 0, width: '100%' }} onClick={() => nav('/settings')}>
-                  <I size={18} className="c-cyan" /><span className="grow" style={{ textAlign: 'left' }}>{k}</span><span className="t-sub">{v}</span><ChevronRight size={14} />
-                </button>
-              ))}
+              <div className="li"><Mic size={18} className="c-cyan" /><span className="grow">Speech-to-text</span><span className="t-sub">{browserVoice.supported ? 'Browser' : 'Unavailable here'}</span></div>
+              <div className="li"><Cpu size={18} className="c-cyan" /><span className="grow">Text-to-speech</span><span className="t-sub">Server voice</span></div>
+              {wakeSupported && (
+                <div className="li"><Mic size={18} className="c-cyan" />
+                  <span className="grow">"Hey Aura" wake word<br /><span className="t-sub" style={{ fontSize: 11.5 }}>
+                    {wake.error || (wake.enabled ? 'Listening on this phone (offline). Shows a notification; uses some battery.' : 'Say "Hey Aura" from any screen, without opening the app.')}
+                  </span></span>
+                  <Toggle on={wake.enabled} label="Hey Aura wake word" onChange={(v) => void setWakeEnabled(v)} />
+                </div>
+              )}
+              <button className="li" style={{ background: 'none', border: 0, width: '100%' }} onClick={() => nav('/settings')}><Settings size={18} className="c-cyan" /><span className="grow" style={{ textAlign: 'left' }}>Voice settings</span><ChevronRight size={14} /></button>
             </div>
-            <div className="t-mute" style={{ marginTop: 6 }}>Provider: {browserVoice.supported ? 'Browser (local)' : 'Unavailable here'} · Vapi / ElevenLabs via server</div>
+            {!browserVoice.supported && <div className="t-mute" style={{ marginTop: 6 }}>This browser can't transcribe speech — type your command after tapping the mic.</div>}
           </Hud>
           <Hud corners title={<span className="hud-label" style={{ fontSize: 13 }}>Live Transcription</span>}>
             <div className="stack" style={{ gap: 14, maxHeight: 280, overflowY: 'auto' }}>
+              {!lines.length && <div className="empty">Your conversation will appear here.</div>}
               {lines.map((l, i) => (
                 <div className="row" key={i} style={{ alignItems: 'flex-start' }}>
                   {l.who === 'You' ? <div className="avatar" style={{ width: 32, height: 32, fontSize: 12 }}>{user.initials}</div> : <span className="icon-box sm round c-cyan" style={{ fontWeight: 800 }}>A</span>}
@@ -168,7 +206,8 @@ export default function Voice() {
           {suggested.map(([I, t]) => <button key={t} className="chip" style={{ padding: '13px 14px', fontSize: 13.5 }} onClick={() => commit(t)}><I size={17} /> {t}</button>)}
         </div>
       </Hud>
-      <StatusBadge status="online" label="Voice service ready" />
+      {error && <div className="tag red" role="alert" style={{ padding: '8px 12px' }}>{error}</div>}
+      <StatusBadge status={state === 'idle' ? 'online' : 'active'} label={state === 'idle' ? 'Ready' : state === 'thinking' ? 'AURA is thinking' : state === 'speaking' ? 'AURA is speaking' : 'Listening'} />
     </>
   );
 }

@@ -2,56 +2,47 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Plus, CalendarDays, Flag, Sparkles, ListChecks, Activity, CheckCircle2, AlertCircle, List, LayoutGrid, X, MoreHorizontal,
-  Plane, ShoppingCart, Heart, Mail, Presentation, Utensils, Video, FileText, Filter, Clock, AlignLeft, CircleDot, Link2,
-  Briefcase, BookOpen, IndianRupee, Wand2, Dumbbell,
+  Plane, ShoppingCart, FileText, Filter, Clock, AlignLeft, CircleDot, Link2, BookOpen, Wand2, type LucideIcon,
 } from 'lucide-react';
-import { Hud, IconBox, Bar, NeonButton, NeonTabs, AppLogo, DemoFlag, toast, toneHex, type Tone } from '../components/aura';
-import { agentById } from '../data/mock';
+import { Hud, IconBox, Bar, NeonButton, NeonTabs, AppLogo, SyncStatus, toast, toneHex, type Tone } from '../components/aura';
+import { agentById } from '../data/agents';
+import { createRecordStore, uid } from '../state/store';
 
 type Bucket = 'today' | 'upcoming' | 'overdue';
+/** Persisted task assigned to an agent. `on` is an ISO date (yyyy-mm-dd); the section is derived from it. */
 interface Task {
-  id: string; title: string; time: string; date?: string; agent: string; done: boolean; priority: 'High' | 'Medium' | 'Low';
-  icon: typeof Plane; tone: Tone; bucket: Bucket; description?: string; apps?: string[]; subtasks?: { t: string; done: boolean }[];
+  id: string; title: string; time: string; on: string; agent: string; done: boolean; priority: 'High' | 'Medium' | 'Low';
+  description?: string; apps?: string[]; subtasks?: { t: string; done: boolean }[];
 }
+type TaskView = Task & { icon: LucideIcon; tone: Tone; bucket: Bucket; date?: string };
 
-const seed: Task[] = [
-  { id: 't1', title: 'Attend interview (Bangalore)', time: '10:00 AM – 11:00 AM', agent: 'travel', done: true, priority: 'High', icon: Plane, tone: 'blue', bucket: 'today' },
-  { id: 't2', title: 'Review project presentation', time: '11:30 AM – 12:30 PM', agent: 'productivity', done: true, priority: 'Medium', icon: Presentation, tone: 'amber', bucket: 'today' },
-  { id: 't3', title: 'Lunch break', time: '01:00 PM – 01:30 PM', agent: 'wellness', done: false, priority: 'Low', icon: Utensils, tone: 'violet', bucket: 'today' },
-  { id: 't4', title: 'Work meeting (Team Sync)', time: '04:00 PM – 05:00 PM', agent: 'communication', done: false, priority: 'High', icon: Video, tone: 'blue', bucket: 'today',
-    description: 'Discuss project progress, blockers and next steps with the team.', apps: ['Google Meet', 'Google Calendar', 'Gmail', 'Notion'],
-    subtasks: [{ t: 'Prepare meeting notes', done: false }, { t: 'Share updated project status', done: false }, { t: 'Follow up on action items', done: false }] },
-  { id: 't5', title: 'Update resume', time: '05:30 PM – 06:00 PM', agent: 'research', done: false, priority: 'Medium', icon: FileText, tone: 'amber', bucket: 'today' },
-  { id: 't6', title: 'Plan weekend trip', time: '07:00 PM – 07:30 PM', agent: 'travel', done: false, priority: 'Low', icon: Plane, tone: 'blue', bucket: 'today' },
-  { id: 'u1', title: 'Gym workout', date: 'Oct 15|Wed', time: '07:00 AM – 08:00 AM', agent: 'wellness', done: false, priority: 'Low', icon: Dumbbell, tone: 'blue', bucket: 'upcoming' },
-  { id: 'u2', title: 'Grocery shopping', date: 'Oct 15|Wed', time: '12:00 PM – 01:00 PM', agent: 'shopping', done: false, priority: 'Low', icon: ShoppingCart, tone: 'amber', bucket: 'upcoming' },
-  { id: 'u3', title: 'Client call (Capco)', date: 'Oct 16|Thu', time: '11:00 AM – 12:00 PM', agent: 'communication', done: false, priority: 'Medium', icon: Briefcase, tone: 'blue', bucket: 'upcoming' },
-  { id: 'u4', title: 'Pay credit card bill', date: 'Oct 17|Fri', time: '09:00 AM – 09:30 AM', agent: 'finance', done: false, priority: 'High', icon: IndianRupee, tone: 'green', bucket: 'upcoming' },
-  { id: 'o1', title: 'Submit expense report', date: 'Oct 12|Sun', time: 'Overdue 2 days', agent: 'finance', done: false, priority: 'High', icon: IndianRupee, tone: 'red', bucket: 'overdue' },
-  { id: 'o2', title: 'Read Agentic AI paper', date: 'Oct 13|Mon', time: 'Overdue 1 day', agent: 'research', done: false, priority: 'Low', icon: BookOpen, tone: 'red', bucket: 'overdue' },
-];
+const agentTasksStore = createRecordStore<Task>('agent_tasks');
+const isoDay = (offset: number) => { const d = new Date(); d.setDate(d.getDate() + offset); return d.toISOString().slice(0, 10); };
+const toView = (t: Task): TaskView => {
+  const a = agentById(t.agent);
+  const today = isoDay(0);
+  const d = new Date(`${t.on}T00:00:00`);
+  return {
+    ...t, icon: a?.icon ?? CircleDot, tone: a?.tone ?? 'blue',
+    bucket: t.on < today ? 'overdue' : t.on === today ? 'today' : 'upcoming',
+    date: t.on === today ? undefined : `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}|${d.toLocaleDateString('en-US', { weekday: 'short' })}`,
+  };
+};
 
-const suggestions: { icon: typeof Plane; tone: Tone; t: string; agent: string; bucket: Bucket }[] = [
-  { icon: Plane, tone: 'blue', t: 'Check-in for your flight tomorrow', agent: 'travel', bucket: 'upcoming' },
-  { icon: ShoppingCart, tone: 'amber', t: 'Reorder your regular groceries', agent: 'shopping', bucket: 'upcoming' },
-  { icon: CalendarDays, tone: 'blue', t: 'Prepare for interview: Suggested study plan', agent: 'research', bucket: 'today' },
-  { icon: Heart, tone: 'magenta', t: 'Time for a 30 min workout', agent: 'wellness', bucket: 'today' },
-  { icon: Mail, tone: 'blue', t: 'Follow up on pending emails', agent: 'communication', bucket: 'today' },
-];
+const examples: [LucideIcon, string, string][] = [[Plane, 'Plan my trip to Goa', 'travel'], [FileText, 'Prepare for interview', 'research'], [ShoppingCart, 'Order groceries', 'shopping'], [BookOpen, 'Create study plan', 'productivity']];
 
 const tabs = ['All Tasks', 'Today', 'Upcoming', 'Completed', 'Overdue'] as const;
 type TabT = (typeof tabs)[number];
 
-function agentTone(id: string): Tone { return agentById(id)?.tone ?? 'blue'; }
 
 export default function Tasks() {
   const nav = useNavigate();
-  const [tasks, setTasks] = useState<Task[]>(seed);
+  const stored = agentTasksStore.use();
+  const tasks = useMemo(() => stored.map(toView), [stored]);
   const [tab, setTab] = useState<TabT>('All Tasks');
   const [view, setView] = useState<'List' | 'Board'>('List');
   const [draft, setDraft] = useState('');
-  const [selId, setSelId] = useState<string | null>('t4');
-  const [sugs, setSugs] = useState(suggestions);
+  const [selId, setSelId] = useState<string | null>(null);
   const [newSub, setNewSub] = useState('');
   const sel = tasks.find((t) => t.id === selId) ?? null;
 
@@ -63,24 +54,25 @@ export default function Tasks() {
     Overdue: tasks.filter((t) => t.bucket === 'overdue' && !t.done).length,
   }), [tasks]);
 
-  const inTab = (t: Task) => tab === 'All Tasks' || (tab === 'Completed' ? t.done : tab === 'Today' ? t.bucket === 'today' : tab === 'Upcoming' ? t.bucket === 'upcoming' : t.bucket === 'overdue' && !t.done);
+  const inTab = (t: TaskView) => tab === 'All Tasks' || (tab === 'Completed' ? t.done : tab === 'Today' ? t.bucket === 'today' : tab === 'Upcoming' ? t.bucket === 'upcoming' : t.bucket === 'overdue' && !t.done);
   const today = tasks.filter((t) => t.bucket === 'today' && inTab(t));
   const later = tasks.filter((t) => t.bucket !== 'today' && inTab(t));
   const todayAll = tasks.filter((t) => t.bucket === 'today');
   const todayDone = todayAll.filter((t) => t.done).length;
 
-  const update = (id: string, p: Partial<Task>) => setTasks((ts) => ts.map((t) => (t.id === id ? { ...t, ...p } : t)));
+  const update = (id: string, p: Partial<Task>) => agentTasksStore.set((ts) => ts.map((t) => (t.id === id ? { ...t, ...p } : t)));
 
-  const add = (title: string, bucket: Bucket = 'today', agent = 'productivity') => {
+  const add = (title: string, agent = 'productivity') => {
     const time = title.match(/\b(\d{1,2}(:\d{2})?\s?(am|pm))\b/i)?.[1]?.toUpperCase() ?? 'Anytime';
-    const t: Task = { id: `n${Date.now()}`, title: title.replace(/\b\d{1,2}(:\d{2})?\s?(am|pm)\b/i, '').trim(), time, agent, done: false, priority: 'Medium', icon: CircleDot, tone: agentTone(agent), bucket: /tomorrow/i.test(title) ? 'upcoming' : bucket, date: /tomorrow/i.test(title) ? 'Tmrw|' : undefined };
-    setTasks((ts) => [t, ...ts]);
+    const tomorrow = /tomorrow/i.test(title);
+    const t: Task = { id: uid('at'), title: title.replace(/\b\d{1,2}(:\d{2})?\s?(am|pm)\b/i, '').replace(/\btomorrow\b/i, '').trim() || title, time, on: isoDay(tomorrow ? 1 : 0), agent, done: false, priority: 'Medium' };
+    agentTasksStore.set((ts) => [t, ...ts]);
     setSelId(t.id);
     toast(`Task created — ${agentById(agent)?.name} assigned.`);
   };
   const submit = (e: FormEvent) => { e.preventDefault(); if (draft.trim()) { add(draft); setDraft(''); } };
 
-  const renderRow = (t: Task) => {
+  const renderRow = (t: TaskView) => {
     const a = agentById(t.agent)!;
     return (
       <div key={t.id} className={`task-row ${selId === t.id ? 'sel' : ''}`} role="row">
@@ -136,22 +128,9 @@ export default function Tasks() {
             </form>
             <div className="t-sub" style={{ margin: '12px 0 8px' }}>Examples:</div>
             <div className="row wrap" style={{ gap: 8 }}>
-              {[[Plane, 'Plan my trip to Goa', 'travel'], [Sparkles, 'Prepare for interview', 'research'], [ShoppingCart, 'Order groceries', 'shopping'], [BookOpen, 'Create study plan', 'productivity']].map(([I, t, ag]) => {
-                const Ic = I as typeof Plane;
-                return <button key={t as string} className="chip" onClick={() => add(t as string, 'today', ag as string)}><Ic size={13} /> {t as string}</button>;
-              })}
-            </div>
-          </Hud>
-          <Hud corners title="AI Suggestions" icon={Sparkles} action="See All">
-            <div className="list">
-              {sugs.map((s) => (
-                <div className="li" key={s.t}>
-                  <IconBox icon={s.icon} tone={s.tone} size="sm" />
-                  <span className="grow" style={{ fontSize: 13 }}>{s.t}</span>
-                  <NeonButton size="sm" variant="primary" onClick={() => { add(s.t, s.bucket, s.agent); setSugs((x) => x.filter((y) => y.t !== s.t)); }}>Add</NeonButton>
-                </div>
+              {examples.map(([Ic, t, ag]) => (
+                <button key={t} className="chip" onClick={() => add(t, ag)}><Ic size={13} /> {t}</button>
               ))}
-              {sugs.length === 0 && <div className="empty">All suggestions added.</div>}
             </div>
           </Hud>
         </div>
@@ -228,7 +207,7 @@ export default function Tasks() {
           ) : (
             <Hud corners title="Task Details"><div className="empty">Select a task to see details.</div></Hud>
           )}
-          <DemoFlag />
+          <SyncStatus stores={[agentTasksStore]} />
         </div>
       </div>
     </>

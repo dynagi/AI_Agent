@@ -1,0 +1,109 @@
+{
+  "synthetic_data": true,
+  "real_person_data": false,
+  "generated_for": "ML research and development",
+  "travel": {
+    "event_rows": 360255,
+    "feature_rows": 66712,
+    "user_rows": 5000,
+    "users_with_events": 4952,
+    "users_with_features": 4783,
+    "bookings": 41803,
+    "cancellations": 2164,
+    "apps": {
+      "MakeMyTrip": 147843,
+      "Goibibo": 75110,
+      "Cleartrip": 51906,
+      "Booking.com": 45654,
+      "Airbnb": 21835,
+      "IRCTC": 17907
+    },
+    "actions": {
+      "search": 120192,
+      "hotel_view": 66886,
+      "price_check": 62621,
+      "flight_view": 56861,
+      "booking": 41803,
+      "wishlist": 9728,
+      "cancel": 2164
+    },
+    "travel_types": {
+      "business": 9148,
+      "weekend": 8009,
+      "leisure": 7367,
+      "solo": 7018,
+      "family": 6624,
+      "holiday": 3637
+    },
+    "top_destinations": {
+      "Goa": 1699,
+      "Udaipur": 1673,
+      "Lucknow": 1665,
+      "Ahmedabad": 1605,
+      "Chandigarh": 1571,
+      "Chennai": 1542,
+      "Delhi": 1529,
+      "Coorg": 1515,
+      "Hyderabad": 1501,
+      "Kolkata": 1494,
+      "Munnar": 1463,
+      "Mahabaleshwar": 1433,
+      "Varanasi": 1415,
+      "Pune": 1398,
+      "Mumbai": 1386
+    },
+    "personas": {
+      "budget_traveler": 1005,
+      "family_traveler": 895,
+      "solo_traveler": 877,
+      "weekend_traveler": 760,
+      "business_traveler": 617,
+      "frequent_traveler": 450,
+      "luxury_traveler": 396
+    },
+    "split": {
+      "train": 46698,
+      "validation": 10007,
+      "test": 10007
+    },
+    "booking_amount_inr": {
+      "count": 41803.0,
+      "mean": 48560.2,
+      "std": 130763.3,
+      "min": 180.0,
+      "25%": 11797.5,
+      "50%": 20412.0,
+      "75%": 37442.5,
+      "max": 3905518.0
+    },
+    "validation_checks": {
+      "min_5000_event_rows": true,
+      "min_5000_feature_rows": true,
+      "unique_event_ids": true,
+      "no_duplicate_event_rows": true,
+      "no_duplicate_event_rows_ignoring_id": true,
+      "no_duplicate_user_ts_action_dest": true,
+      "unique_snapshot_ids": true,
+      "no_duplicate_feature_rows": true,
+      "no_null_user_ids": true,
+      "no_nulls_events": true,
+      "no_nulls_features": true,
+      "timestamps_in_range": true,
+      "no_negative_prices": true,
+      "valid_durations_travelers": true,
+      "bookings_have_positive_amount": true,
+      "departure_after_booking": true,
+      "valid_apps": true,
+      "valid_actions": true,
+      "valid_travel_types": true,
+      "all_6_apps_used": true,
+      "min_users_4000": true,
+      "events_chronological": true,
+      "features_chronological": true,
+      "no_leakage_target_after_snapshot": true,
+      "no_leakage_last_event_before_snapshot": true,
+      "split_is_chronological": true,
+      "all_event_users_in_users_file": true
+    }
+  }
+}

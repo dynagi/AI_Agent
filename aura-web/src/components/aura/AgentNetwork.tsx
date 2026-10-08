@@ -1,4 +1,4 @@
-import type { Agent } from '../../data/mock';
+import type { Agent } from '../../data/agents';
 import { IconBox, toneHex } from '../ui';
 import { AgentAvatar } from './cards';
 import './agent-network.css';

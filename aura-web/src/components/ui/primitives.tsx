@@ -1,6 +1,8 @@
 import { useEffect, useState, type ReactNode, type CSSProperties } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { ChevronRight } from 'lucide-react';
+import { motion, useReducedMotion, AnimatePresence } from 'framer-motion';
+import { revealUp, staggerContainer, staggerItem, toastMotion } from '../motion';
 
 export type Tone = 'cyan' | 'blue' | 'violet' | 'magenta' | 'teal' | 'green' | 'amber' | 'red' | 'pink';
 
@@ -32,8 +34,16 @@ interface HudProps {
 }
 
 export function Hud({ title, sub, icon: Icon, action, onAction, corners, glow, className = '', style, children }: HudProps) {
+  const reduceMotion = useReducedMotion();
   return (
-    <section className={`hud fade-in ${corners ? 'corners' : ''} ${glow ? `glow-${glow}` : ''} ${className}`} style={style}>
+    <motion.section
+      className={`hud ${corners ? 'corners' : ''} ${glow ? `glow-${glow}` : ''} ${className}`}
+      style={style}
+      variants={revealUp}
+      initial={reduceMotion ? false : 'hidden'}
+      whileInView="show"
+      viewport={{ once: true, margin: '-60px' }}
+    >
       {(title || action) && (
         <div className="hud-head">
           <div style={{ minWidth: 0 }}>
@@ -53,7 +63,7 @@ export function Hud({ title, sub, icon: Icon, action, onAction, corners, glow, c
         </div>
       )}
       {children}
-    </section>
+    </motion.section>
   );
 }
 
@@ -76,10 +86,6 @@ export function Bar({ value, tone = 'cyan', gradient }: { value: number; tone?: 
       <i style={{ width: `${Math.min(100, Math.max(0, value))}%`, background: gradient ?? toneHex[tone], color: toneHex[tone] }} />
     </div>
   );
-}
-
-export function DemoFlag({ label = 'DEMO DATA' }: { label?: string }) {
-  return <span className="demo-flag" title="Shown because the related integration is not connected">● {label}</span>;
 }
 
 export function Dot({ tone = 'green', pulse }: { tone?: 'green' | 'amber' | 'cyan' | 'violet' | 'off'; pulse?: boolean }) {
@@ -299,16 +305,34 @@ export function PageHero({ title, accent, lead, quote, feats, art = 'integration
   children?: ReactNode;
 }) {
   const src = image ?? (art ? artSrc[art] : undefined);
+  const reduceMotion = useReducedMotion();
   return (
-    <section className="hero fade-in" aria-label={typeof title === 'string' ? title : undefined}>
-      {src && <img className="hero-bg" src={src} alt="" loading="lazy" style={{ width: imageWidth }} />}
+    <motion.section
+      className="hero"
+      aria-label={typeof title === 'string' ? title : undefined}
+      variants={staggerContainer}
+      initial={reduceMotion ? false : 'hidden'}
+      animate="show"
+    >
+      {src && (
+        <motion.img
+          className="hero-bg"
+          src={src}
+          alt=""
+          loading="lazy"
+          style={{ width: imageWidth }}
+          initial={reduceMotion ? false : { opacity: 0, scale: 1.08 }}
+          animate={reduceMotion ? undefined : { opacity: 1, scale: [1.08, 1, 1.035, 1] }}
+          transition={reduceMotion ? undefined : { opacity: { duration: 0.6 }, scale: { duration: 14, ease: 'easeInOut', repeat: Infinity, repeatType: 'mirror' } }}
+        />
+      )}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <h1>
+        <motion.h1 variants={staggerItem}>
           {title} {accent && <span className="grad">{accent}</span>}
-        </h1>
-        {lead && <p className="lead">{lead}</p>}
+        </motion.h1>
+        {lead && <motion.p className="lead" variants={staggerItem}>{lead}</motion.p>}
         {feats && (
-          <div className="hero-feats">
+          <motion.div className="hero-feats" variants={staggerItem}>
             {feats.map((f) => (
               <div className="hero-feat" key={f.title}>
                 <IconBox icon={f.icon} tone={f.tone ?? 'blue'} size="sm" round />
@@ -318,17 +342,17 @@ export function PageHero({ title, accent, lead, quote, feats, art = 'integration
                 </div>
               </div>
             ))}
-          </div>
+          </motion.div>
         )}
-        {children}
+        {children && <motion.div variants={staggerItem}>{children}</motion.div>}
       </div>
       {quote && (
-        <div className="hero-quote hide-sm" style={{ maxWidth: 250, marginRight: src ? `calc(${imageWidth} - 8%)` : 0 }}>
+        <motion.div className="hero-quote hide-sm" variants={staggerItem} style={{ maxWidth: 250, marginRight: src ? `calc(${imageWidth} - 8%)` : 0 }}>
           “{quote}”<small>— AURA</small>
-        </div>
+        </motion.div>
       )}
       {right}
-    </section>
+    </motion.section>
   );
 }
 
@@ -348,11 +372,14 @@ export function ToastHost() {
     const t = setTimeout(() => setMsg(null), 2800);
     return () => clearTimeout(t);
   }, [msg]);
-  if (!msg) return null;
   return (
-    <div className="toast" role="status">
-      <Dot tone="cyan" pulse /> {msg}
-    </div>
+    <AnimatePresence>
+      {msg && (
+        <motion.div className="toast" role="status" variants={toastMotion} initial="hidden" animate="show" exit="exit">
+          <Dot tone="cyan" pulse /> {msg}
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
 

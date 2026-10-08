@@ -1,0 +1,45 @@
+# AURA's server as ONE container, for Render's free plan (one free service can stay awake all month; two can't).
+# The Node backend is the public API on $PORT. The Python AI service runs beside it on 127.0.0.1:8001, reachable
+# only from inside this container. Built from the repo root:  docker build -f Dockerfile.render .
+# (docker-compose.yml still runs them as two separate containers for local use.)
+
+# ---- backend: compile TypeScript, then install only what it needs at runtime
+FROM node:20-slim AS backend-build
+WORKDIR /backend
+COPY backend/package.json ./
+RUN npm install
+COPY backend/tsconfig.json ./
+COPY backend/src ./src
+RUN npm run build
+
+FROM node:20-slim AS backend-deps
+WORKDIR /backend
+COPY backend/package.json ./
+RUN npm install --omit=dev
+
+# ---- the running image: Python, plus the Node runtime copied in
+FROM python:3.12-slim
+# libgomp1: the OpenMP runtime LightGBM needs
+RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 && rm -rf /var/lib/apt/lists/*
+COPY --from=node:20-slim /usr/local/bin/node /usr/local/bin/node
+RUN useradd --create-home --shell /bin/bash aura
+
+WORKDIR /app/ai-service
+COPY ai-service/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY ai-service/app ./app
+COPY ai-service/models ./models
+COPY ai-service/data ./data
+RUN mkdir -p /app/ai-service/app/data && chown -R aura /app/ai-service/app/data
+
+WORKDIR /app/backend
+COPY backend/package.json ./
+COPY --from=backend-deps /backend/node_modules ./node_modules
+COPY --from=backend-build /backend/dist ./dist
+
+COPY deploy/render-start.sh /app/start.sh
+RUN chmod +x /app/start.sh
+USER aura
+ENV NODE_ENV=production PYTHON_AI_URL=http://127.0.0.1:8001 PYTHONUNBUFFERED=1
+EXPOSE 10000
+CMD ["/app/start.sh"]

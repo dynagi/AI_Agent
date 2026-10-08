@@ -2,7 +2,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { CalendarPlus, Pencil, Trash2, CalendarDays, Clock } from 'lucide-react';
 import { toneHex } from '../ui';
 import { FuturisticModal, NeonButton, HudInput } from '../aura';
-import { kindMeta, titleIcon, type CalendarEvent, type EventKind } from '../../data/mockEvents';
+import { kindMeta, titleIcon, todayISO, type CalendarEvent, type EventKind } from '../../data/events';
 
 export const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export const toISO = (y: number, m: number, d: number) => `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
@@ -87,7 +87,7 @@ export function EventModal({ event, date, preset, onSave, onDelete, onClose }: {
   event?: CalendarEvent; date?: string; preset?: Partial<CalendarEvent>; onSave: (e: Omit<CalendarEvent, 'id'>) => void; onDelete?: () => void; onClose: () => void;
 }) {
   const [editing, setEditing] = useState(!event);
-  const [f, setF] = useState<Omit<CalendarEvent, 'id'>>(event ?? { title: '', date: date ?? '2025-10-14', start: '10:00 AM', end: '11:00 AM', kind: 'meeting', ...preset });
+  const [f, setF] = useState<Omit<CalendarEvent, 'id'>>(event ?? { title: '', date: date ?? todayISO(), start: '10:00 AM', end: '11:00 AM', kind: 'meeting', ...preset });
   const [err, setErr] = useState('');
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -104,11 +104,14 @@ export function EventModal({ event, date, preset, onSave, onDelete, onClose }: {
           <div className="li"><Clock size={16} className="c-cyan" /> {event.start}{event.end ? ` – ${event.end}` : ''}</div>
           <div className="li"><span className="dot" style={{ background: toneHex[meta.tone], color: toneHex[meta.tone] }} /> {meta.label}</div>
           {event.notes && <div className="li t-sub">{event.notes}</div>}
+          {event.source === 'google' && <div className="li t-sub">Synced from Google Calendar (read-only here).</div>}
         </div>
-        <div className="row" style={{ justifyContent: 'flex-end', marginTop: 14 }}>
-          <NeonButton variant="danger" icon={Trash2} onClick={onDelete}>Delete</NeonButton>
-          <NeonButton variant="primary" icon={Pencil} onClick={() => setEditing(true)}>Edit</NeonButton>
-        </div>
+        {event.source !== 'google' && (
+          <div className="row" style={{ justifyContent: 'flex-end', marginTop: 14 }}>
+            <NeonButton variant="danger" icon={Trash2} onClick={onDelete}>Delete</NeonButton>
+            <NeonButton variant="primary" icon={Pencil} onClick={() => setEditing(true)}>Edit</NeonButton>
+          </div>
+        )}
       </FuturisticModal>
     );
   }

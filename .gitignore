@@ -6,3 +6,20 @@ dist/
 .env.*
 !.env.example
 *.tsbuildinfo
+__pycache__/
+*.pyc
+.venv/
+venv/
+ai-service/app/data/
+synthetic_data/shopping/
+synthetic_data/experiments/shop_small/
+# generated synthetic training data (regenerate with synthetic_data/generate_*.py); too large for GitHub
+synthetic_data/travel/*.csv
+synthetic_data/experiments/
+# personal invoices (names, addresses): never commit
+my_invoices/
+# Vosk speech model for "Hey Aura" (55 MB, downloaded: see aura-web/README.md)
+aura-web/android/app/src/main/assets/model-en-in/
+
+# shareable APKs
+/release/

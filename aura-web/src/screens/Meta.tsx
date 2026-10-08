@@ -1,88 +1,146 @@
-import { Fragment, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  CalendarCheck, Clock, IndianRupee, Plane, ShoppingCart, Utensils, ShoppingBag, CreditCard, MoreHorizontal, Leaf, BookOpen,
-  Heart, Trophy, Timer, CheckCircle2, Crown, Users, Zap, Brain, ChevronRight, Sparkles, Rocket, CreditCard as Mail,
-  LifeBuoy, Globe, UsersRound, ArrowRight, Infinity as InfinityIcon, Target, Send,
+  CalendarCheck, IndianRupee, Plane, MoreHorizontal, Leaf, Heart, Trophy, CheckCircle2, Crown, Users, Zap, Brain, ChevronRight, Sparkles, Rocket, CreditCard as Mail,
+  LifeBuoy, Globe, UsersRound, ArrowRight, Infinity as InfinityIcon, Target, Send, Activity, Wallet,
 } from 'lucide-react';
-import { Hud, IconBox, Bar, Donut, Legend, LineChart, BarChart, DemoFlag, PageHero, toast, type Tone } from '../components/aura';
-import { agents } from '../data/mock';
+import { Hud, IconBox, Bar, Donut, Legend, LineChart, BarChart, SyncStatus, PageHero, toast, type Tone } from '../components/aura';
+import { agentById } from '../data/agents';
+import { txColor, type TxCategory } from '../data/transactions';
+import { goalIcons } from '../data/goals';
+import { activityStore } from '../state/agentActivity';
+import { tasksStore, transactionsStore, goalsStore, bookingsStore, dayLogsStore, budgetsStore } from '../state/stores';
 
 /* =================== ANALYTICS =================== */
 
+const inr = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
+const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const RANGES = { 'Last 7 days': 7, 'Last 30 days': 30, 'Last 90 days': 90 } as const;
+
 export function Analytics() {
   const nav = useNavigate();
-  const [range, setRange] = useState('Last 30 days');
-  const trend = [5, 8, 9, 7, 10, 12, 11, 13, 14, 13, 15, 16, 18, 17, 16, 19, 21, 22, 20, 23, 25, 24, 27, 28, 30, 29, 31, 33, 34, 36];
-  const time = [
-    { label: 'Travel', value: 32, color: '#3B82FF' }, { label: 'Shopping', value: 24, color: '#6366F1' }, { label: 'Research', value: 18, color: '#8B5CF6' },
-    { label: 'Communication', value: 14, color: '#D946EF' }, { label: 'Finance', value: 8, color: '#F59E0B' }, { label: 'Others', value: 4, color: '#00E5FF' },
-  ];
-  const byAgent = ['travel', 'shopping', 'productivity', 'research', 'finance', 'wellness', 'communication', 'memory'].map((id) => agents.find((a) => a.id === id)!);
-  const heat = Array.from({ length: 7 }, (_, r) => Array.from({ length: 24 }, (_, c) => (Math.sin(r * 3 + c * 0.7) + Math.cos(c * 0.45 + r)) * 0.5 + 0.5));
+  const [range, setRange] = useState<keyof typeof RANGES>('Last 30 days');
+  const tasks = tasksStore.use();
+  const txs = transactionsStore.use();
+  const goals = goalsStore.use();
+  const bookings = bookingsStore.use();
+  const logs = dayLogsStore.use();
+  const budgets = budgetsStore.use();
+  const activity = activityStore.use();
+
+  const days = RANGES[range];
+  const since = new Date(); since.setDate(since.getDate() - days + 1); since.setHours(0, 0, 0, 0);
+  const sinceIso = iso(since);
+
+  const stats = useMemo(() => {
+    const inRange = txs.filter((t) => new Date(t.ts) >= since);
+    const income = inRange.filter((t) => t.amount > 0).reduce((s, t) => s + t.amount, 0);
+    const spend = inRange.filter((t) => t.amount < 0).reduce((s, t) => s - t.amount, 0);
+    const byCat = new Map<TxCategory, number>();
+    inRange.filter((t) => t.amount < 0).forEach((t) => byCat.set(t.category, (byCat.get(t.category) ?? 0) + Math.abs(t.amount)));
+    const dueInRange = tasks.filter((t) => t.date >= sinceIso && t.date <= iso(new Date()));
+    const points = Array.from({ length: Math.min(days, 14) }, (_, i) => {
+      const d = new Date(); d.setDate(d.getDate() - (Math.min(days, 14) - 1 - i));
+      const key = iso(d);
+      return { label: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), done: tasks.filter((t) => t.date === key && t.done).length };
+    });
+    return { income, spend, byCat: [...byCat.entries()].sort((a, b) => b[1] - a[1]), doneCount: dueInRange.filter((t) => t.done).length, dueCount: dueInRange.length, points };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [txs, tasks, days]);
+
+  const catData = stats.byCat.map(([label, v]) => ({ label, value: Math.round((v / Math.max(1, stats.spend)) * 100), color: txColor[label] }));
+  const agentCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    activity.forEach((a) => m.set(a.agent, (m.get(a.agent) ?? 0) + 1));
+    return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+  }, [activity]);
+  const loggedDays = logs.filter((l) => l.date >= sinceIso).length;
+  const avgSleep = (() => { const v = logs.filter((l) => l.date >= sinceIso && l.sleepHours).map((l) => l.sleepHours as number); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : 0; })();
+  const avgSteps = (() => { const v = logs.filter((l) => l.date >= sinceIso && l.steps).map((l) => l.steps as number); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : 0; })();
+
+  const insights = useMemo(() => {
+    const out: { icon: typeof Plane; text: string; to: string; cta: string }[] = [];
+    if (stats.byCat[0]) out.push({ icon: Wallet, text: `${stats.byCat[0][0]} is your biggest expense in this period (${inr(stats.byCat[0][1])}).`, to: '/finance', cta: 'Review spending' });
+    const over = budgets.find((b) => (stats.byCat.find(([c]) => c === b.category)?.[1] ?? 0) > b.limit);
+    if (over) out.push({ icon: Wallet, text: `You've spent more than your ${inr(over.limit)} ${over.category} budget.`, to: '/finance', cta: 'Adjust budget' });
+    if (stats.dueCount && stats.doneCount < stats.dueCount) out.push({ icon: CalendarCheck, text: `${stats.dueCount - stats.doneCount} task${stats.dueCount - stats.doneCount > 1 ? 's' : ''} that were due are still open.`, to: '/tasks', cta: 'Open tasks' });
+    if (avgSleep && avgSleep < 7) out.push({ icon: Heart, text: `You've averaged ${avgSleep.toFixed(1)} hours of sleep. Aim for 7–8.`, to: '/wellness', cta: 'Plan wind-down' });
+    return out;
+  }, [stats, budgets, avgSleep]);
+
+  const achievements = [
+    stats.doneCount >= 5 && { icon: CalendarCheck, tone: 'green', title: 'Task Finisher', sub: `${stats.doneCount} tasks done` },
+    bookings.length >= 1 && { icon: Plane, tone: 'blue', title: 'Trip Planner', sub: `${bookings.length} saved booking${bookings.length > 1 ? 's' : ''}` },
+    loggedDays >= 5 && { icon: Heart, tone: 'pink', title: 'Wellness Streak', sub: `${loggedDays} days logged` },
+    stats.income > stats.spend && stats.income > 0 && { icon: IndianRupee, tone: 'violet', title: 'Smart Spender', sub: `Saved ${inr(stats.income - stats.spend)}` },
+  ].filter(Boolean) as { icon: typeof Plane; tone: Tone; title: string; sub: string }[];
 
   return (
     <>
-      <PageHero art="analytics" title="Analytics &" accent="Insights" lead="A personalized view of your activity, savings, and productivity." quote="Data into Decisions. Your Life, Optimized."
-        right={<select className="select" value={range} onChange={(e) => setRange(e.target.value)}><option>Last 30 days</option><option>Last 7 days</option><option>This year</option></select>} />
+      <PageHero art="analytics" title="Analytics &" accent="Insights" lead="A personalized view of your own activity, spending and progress." quote="Data into Decisions."
+        right={<select className="select" value={range} onChange={(e) => setRange(e.target.value as keyof typeof RANGES)} aria-label="Date range">{Object.keys(RANGES).map((r) => <option key={r}>{r}</option>)}</select>} />
       <div className="grid g4">
-        {[[CalendarCheck, '24', 'Tasks Completed', '20%', 'pink'], [Clock, '15 hrs', 'Time Saved', '35%', 'cyan'], [IndianRupee, '₹12,450', 'Money Saved', '28%', 'green'], [Plane, '5', 'Trips Planned', '2 new', 'blue']].map(([I, v, l, d, t]) => (
-          <div className="hud row" key={l as string}><IconBox icon={I as typeof Clock} tone={t as Tone} size="lg" /><div style={{ flex: 1 }}><b style={{ fontSize: 22 }}>{v as string}</b><div className="t-sub">{l as string}</div></div><div className="c-green" style={{ fontSize: 13, textAlign: 'right' }}>↑ {d as string}<div className="t-mute">vs. previous</div></div></div>
+        {([[CalendarCheck, `${stats.doneCount}/${stats.dueCount}`, 'Due tasks completed', 'pink'], [IndianRupee, inr(stats.spend), 'Spent', 'cyan'], [Wallet, inr(stats.income - stats.spend), 'Net saved', 'green'], [Plane, String(bookings.length), 'Saved bookings', 'blue']] as const).map(([I, v, l, t]) => (
+          <div className="hud row" key={l}><IconBox icon={I} tone={t as Tone} size="lg" /><div style={{ flex: 1 }}><b style={{ fontSize: 22 }}>{v}</b><div className="t-sub">{l}</div></div></div>
         ))}
       </div>
       <div className="grid g3">
-        <Hud title="Task Completion Trend" icon={CalendarCheck}><LineChart values={trend} labels={['Sep 15', 'Sep 20', 'Sep 25', 'Sep 30', 'Oct 05', 'Oct 10', 'Oct 14']} height={200} /></Hud>
-        <Hud title="Time Saved by Category" icon={Clock}><div className="row" style={{ gap: 16 }}><Donut data={time} center="15 hrs" sub="Saved" size={160} /><Legend data={time} /></div></Hud>
-        <Hud title="Spending Insights" icon={IndianRupee}>
+        <Hud title="Tasks Completed by Day" icon={CalendarCheck}>
+          {stats.points.some((p) => p.done > 0) ? <LineChart values={stats.points.map((p) => p.done)} labels={stats.points.map((p) => p.label)} height={200} /> : <div className="empty">Complete tasks and they'll be charted here.</div>}
+        </Hud>
+        <Hud title="Spending by Category" icon={IndianRupee}>
+          {catData.length ? <div className="row" style={{ gap: 16 }}><Donut data={catData} center={inr(stats.spend)} sub="Spent" size={160} /><Legend data={catData} /></div> : <div className="empty">No spending recorded in this period.</div>}
+        </Hud>
+        <Hud title="Top Expenses" icon={MoreHorizontal}>
           <div className="stack" style={{ gap: 10 }}>
-            {[[Plane, 'Travel', 18200, 'cyan'], [Utensils, 'Food & Delivery', 8450, 'violet'], [ShoppingBag, 'Shopping', 6780, 'pink'], [CreditCard, 'Subscriptions', 2990, 'amber'], [MoreHorizontal, 'Others', 1870, 'blue']].map(([I, l, v, t]) => {
-              const Ic = I as typeof Plane;
-              return <div className="row" key={l as string}><Ic size={15} className={`c-${t as string}`} /><span style={{ width: 110, fontSize: 13 }}>{l as string}</span><div style={{ flex: 1 }}><Bar value={((v as number) / 20000) * 100} tone={t as Tone} /></div><span className="mono" style={{ fontSize: 12 }}>₹{(v as number).toLocaleString('en-IN')}</span></div>;
-            })}
-            <div className="tile row" style={{ borderColor: 'rgba(34,197,94,0.5)' }}><Leaf className="c-green" /><div style={{ flex: 1 }}><b className="c-green">₹12,450 Saved</b><div className="t-sub">through better options & smart recommendations</div></div><span className="c-green">↑ 28%</span></div>
+            {stats.byCat.slice(0, 5).map(([label, v]) => (
+              <div className="row" key={label}><span style={{ width: 120, fontSize: 13 }}>{label}</span><div style={{ flex: 1 }}><Bar value={(v / Math.max(1, stats.byCat[0][1])) * 100} tone="cyan" /></div><span className="mono" style={{ fontSize: 12 }}>{inr(v)}</span></div>
+            ))}
+            {!stats.byCat.length && <div className="empty">Nothing yet.</div>}
+            {stats.income > stats.spend && stats.income > 0 && <div className="tile row" style={{ borderColor: 'rgba(34,197,94,0.5)' }}><Leaf className="c-green" /><div style={{ flex: 1 }}><b className="c-green">{inr(stats.income - stats.spend)} saved</b><div className="t-sub">income minus spending in this period</div></div></div>}
           </div>
         </Hud>
       </div>
       <div className="grid g3">
         <Hud title="Activity by Agent" icon={Users}>
-          <BarChart values={[42, 36, 28, 24, 20, 18, 16, 12]} labels={byAgent.map((a) => a.name.split(' ')[0])} colors={['#3B82FF', '#8B5CF6', '#00E5FF', '#A855F7', '#00F5D4', '#EC4899', '#22D3EE', '#F59E0B']} showValues height={210} />
+          {agentCounts.length ? <BarChart values={agentCounts.map(([, n]) => n)} labels={agentCounts.map(([id]) => (agentById(id)?.name ?? id).split(' ')[0])} showValues height={210} /> : <div className="empty">Ask AURA something in Chat and the agents involved will appear here.</div>}
         </Hud>
-        <Hud title="Goal Progress" icon={Target} action="View All">
+        <Hud title="Goal Progress" icon={Target} action="Manage" onAction={() => nav('/finance')}>
           <div className="stack" style={{ gap: 14 }}>
-            {[[Plane, 'Plan 3 trips this quarter', '2/3', 67, 'blue'], [BookOpen, 'Read 5 research papers', '3/5', 60, 'violet'], [Heart, 'Maintain daily workout', '18/30', 60, 'pink'], [IndianRupee, 'Save ₹50,000 this year', '₹12,450/₹50,000', 25, 'amber']].map(([I, l, s, v, t]) => (
-              <div className="row" key={l as string}><IconBox icon={I as typeof Plane} tone={t as Tone} size="sm" /><div style={{ flex: 1 }}><div className="row between" style={{ fontSize: 12.5 }}><span>{l as string}</span><span className="t-sub">{s as string}</span></div><Bar value={v as number} tone={t as Tone} /></div><span className="mono t-sub">{v as number}%</span></div>
-            ))}
+            {goals.map((g) => {
+              const v = Math.round((g.saved / g.target) * 100);
+              return <div className="row" key={g.id}><IconBox icon={goalIcons[g.icon]} tone={g.tone} size="sm" /><div style={{ flex: 1 }}><div className="row between" style={{ fontSize: 12.5 }}><span>{g.name}</span><span className="t-sub">{inr(g.saved)}/{inr(g.target)}</span></div><Bar value={v} tone={g.tone} /></div><span className="mono t-sub">{v}%</span></div>;
+            })}
+            {!goals.length && <div className="empty">No goals yet. Add one in Finance.</div>}
           </div>
         </Hud>
-        <Hud title="Productivity Heatmap" icon={CalendarCheck}>
-          <div style={{ display: 'grid', gridTemplateColumns: '34px repeat(24, minmax(0,1fr))', gap: 3, fontSize: 11 }}>
-            {heat.map((row, r) => (
-              <Fragment key={r}>
-                <span className="t-sub">{['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][r]}</span>
-                {row.map((v, c) => <span key={c} title={`${Math.round(v * 100)}% active`} style={{ height: 13, borderRadius: 2, background: v > 0.85 ? '#00E5FF' : `rgba(59,130,255,${0.15 + v * 0.7})`, boxShadow: v > 0.85 ? '0 0 6px #00E5FF' : undefined }} />)}
-              </Fragment>
-            ))}
+        <Hud title="Wellness" icon={Activity}>
+          <div className="grid g2" style={{ gap: 8 }}>
+            <div className="tile"><b style={{ fontSize: 20 }}>{loggedDays}</b><div className="t-sub">Days logged</div></div>
+            <div className="tile"><b style={{ fontSize: 20 }}>{avgSleep ? `${avgSleep.toFixed(1)} h` : '—'}</b><div className="t-sub">Avg sleep</div></div>
+            <div className="tile"><b style={{ fontSize: 20 }}>{avgSteps ? Math.round(avgSteps).toLocaleString('en-IN') : '—'}</b><div className="t-sub">Avg steps</div></div>
           </div>
-          <div className="row t-mute" style={{ justifyContent: 'flex-end', marginTop: 8 }}>Less Active <span style={{ width: 60, height: 8, borderRadius: 4, background: 'linear-gradient(90deg, rgba(59,130,255,0.2), #00E5FF)' }} /> More Active</div>
         </Hud>
       </div>
       <div className="grid auto-stack" style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,1.4fr)' }}>
-        <Hud title="Recent Achievements" icon={Trophy} action="View All">
+        <Hud title="Achievements" icon={Trophy}>
           <div className="grid g4" style={{ gap: 8 }}>
-            {[[Plane, 'Frequent Traveler', 'Planned 5 trips', 'green'], [Timer, 'Time Saver', 'Saved 10+ hours', 'violet'], [Heart, 'Wellness Streak', '7 days in a row', 'pink'], [Clock, 'Smart Spender', 'Saved ₹10,000+', 'blue']].map(([I, t, s, tone]) => (
-              <div key={t as string} className="tile"><div className="row between"><IconBox icon={I as typeof Plane} tone={tone as Tone} size="sm" /><CheckCircle2 size={14} className="c-green" /></div><b style={{ fontSize: 13, display: 'block', marginTop: 6 }}>{t as string}</b><span className="t-mute">{s as string}</span></div>
+            {achievements.map((a) => (
+              <div key={a.title} className="tile"><div className="row between"><IconBox icon={a.icon} tone={a.tone} size="sm" /><CheckCircle2 size={14} className="c-green" /></div><b style={{ fontSize: 13, display: 'block', marginTop: 6 }}>{a.title}</b><span className="t-mute">{a.sub}</span></div>
             ))}
           </div>
+          {!achievements.length && <div className="empty">Achievements unlock as you use AURA.</div>}
         </Hud>
-        <Hud title="Personal Insights" icon={Sparkles} action="Powered by AURA AI">
+        <Hud title="Personal Insights" icon={Sparkles} action="Based on your data">
           <div className="grid g3" style={{ gap: 8 }}>
-            {[[Plane, 'You usually book flights 3-4 weeks in advance. I found better prices for your next trip to Goa.', 'View Options', '/travel'], [ShoppingCart, 'You order groceries every 25 days. Shall I prepare your next order for next week?', 'Set Reminder', '/shopping'], [Heart, 'Your productivity is highest on Tuesday and Thursday. Schedule important tasks on these days.', 'Optimize Schedule', '/calendar']].map(([I, t, b, to]) => (
-              <div key={b as string} className="tile stack" style={{ gap: 8 }}><IconBox icon={I as typeof Plane} tone="blue" /><span style={{ fontSize: 12.5 }}>{t as string}</span><button className="btn sm block" style={{ marginTop: 'auto' }} onClick={() => nav(to as string)}>{b as string}</button></div>
+            {insights.map((i) => (
+              <div key={i.text} className="tile stack" style={{ gap: 8 }}><IconBox icon={i.icon} tone="blue" /><span style={{ fontSize: 12.5 }}>{i.text}</span><button className="btn sm block" style={{ marginTop: 'auto' }} onClick={() => nav(i.to)}>{i.cta}</button></div>
             ))}
           </div>
+          {!insights.length && <div className="empty">Add tasks, spending and wellness logs to get insights.</div>}
         </Hud>
       </div>
-      <DemoFlag />
+      <SyncStatus stores={[tasksStore, transactionsStore, goalsStore, bookingsStore, dayLogsStore, budgetsStore]} />
     </>
   );
 }
@@ -136,7 +194,7 @@ export function ThankYou() {
             <div className="grid" style={{ gridTemplateColumns: 'repeat(4,1fr)', gap: 8 }}>
               {[[Mail, 'Email Us'], [LifeBuoy, 'Support'], [Globe, 'Visit Website'], [UsersRound, 'Community']].map(([I, l]) => {
                 const Ic = I as typeof Mail;
-                return <button key={l as string} className="tile stack" style={{ alignItems: 'center', gap: 8, padding: '12px 4px' }} onClick={() => toast(`${l as string}: link not configured in demo.`)}><Ic size={26} strokeWidth={1.5} /><span style={{ fontSize: 11.5 }}>{l as string}</span></button>;
+                return <button key={l as string} className="tile stack" style={{ alignItems: 'center', gap: 8, padding: '12px 4px' }} onClick={() => toast(`${l as string} isn't configured for this deployment yet.`)}><Ic size={26} strokeWidth={1.5} /><span style={{ fontSize: 11.5 }}>{l as string}</span></button>;
               })}
             </div>
           </Hud>

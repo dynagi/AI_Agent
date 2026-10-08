@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { ArrowRight, Clock, Pencil, Trash2, Play, Copy, Plus, Wand2, Zap, ListChecks, ShieldCheck, Check } from 'lucide-react';
 import { IconBox, MoreMenu, Toggle, CategoryBadge, type Tone } from '../ui';
 import { AppLogo, FuturisticModal, NeonButton, HudInput } from '../aura';
-import type { AutoCategory, AutoTemplate, Automation } from '../../data/mockAutomations';
+import { autoIcon, type AutoCategory, type AutoTemplate, type Automation } from '../../data/automations';
+import { aura } from '../../services/aura';
 
 const tagTone = (t: string): Tone => (/(Finance|Tracking)/.test(t) ? 'green' : /(Health|Fitness)/.test(t) ? 'red' : /(Shopping|Lifestyle)/.test(t) ? 'magenta' : /(Travel|Planning)/.test(t) ? 'cyan' : 'blue');
 
@@ -36,7 +37,7 @@ export function AutomationCard({ a, flow, onToggle, onEdit, onRun, onDuplicate, 
   }
   return (
     <article className="tile stack" style={{ gap: 8, padding: 14 }}>
-      <div className="row between"><IconBox icon={a.icon} tone={a.tone} /><Toggle on={a.active} onChange={onToggle} label={`${a.name} active`} /></div>
+      <div className="row between"><IconBox icon={autoIcon(a.icon)} tone={a.tone} /><Toggle on={a.active} onChange={onToggle} label={`${a.name} active`} /></div>
       <h4 style={{ margin: 0, fontSize: 16.5 }}>{a.name}</h4>
       <p className="t-sub" style={{ margin: 0, fontSize: 13 }}>{a.description}</p>
       <div className="row wrap" style={{ gap: 6 }}>{a.tags.map((t) => <CategoryBadge key={t} label={t} tone={tagTone(t)} />)}</div>
@@ -51,7 +52,7 @@ export function AutomationCard({ a, flow, onToggle, onEdit, onRun, onDuplicate, 
 export function TemplateCard({ t, compact, onUse }: { t: AutoTemplate; compact?: boolean; onUse: () => void }) {
   return (
     <article className={compact ? 'tile row' : 'tile stack'} style={{ gap: compact ? 12 : 8, padding: 12, alignItems: compact ? 'flex-start' : undefined }}>
-      <IconBox icon={t.icon} tone={t.tone} size={compact ? 'md' : 'lg'} />
+      <IconBox icon={autoIcon(t.icon)} tone={t.tone} size={compact ? 'md' : 'lg'} />
       <div className="stack" style={{ gap: 6, flex: 1 }}>
         <b style={{ fontSize: 14 }}>{t.name}</b>
         <span className="t-sub" style={{ fontSize: 12.5 }}>{t.description}</span>
@@ -66,7 +67,7 @@ export function TemplateCard({ t, compact, onUse }: { t: AutoTemplate; compact?:
 
 export interface Draft { name: string; description: string; category: AutoCategory; trigger: string; steps: string[]; schedule: string; needsApproval: boolean }
 
-/** Very small NL → workflow parser (demo). The backend would do this with the LLM + tool registry. */
+/** Keyword-based fallback used when the AI planner is unavailable. */
 export function draftFromText(text: string): Draft {
   const t = text.toLowerCase();
   const trigger = /when(ever)? i (get|receive) (an? )?email/.test(t) ? 'New email received (Gmail)'
@@ -92,10 +93,23 @@ export function draftFromText(text: string): Draft {
   };
 }
 
+/** Builds a workflow draft: the AI planner proposes the steps; trigger/category come from the wording. Falls back to keywords if the planner is down. */
+export async function buildDraft(text: string): Promise<Draft> {
+  const base = draftFromText(text);
+  try {
+    const tasks = await aura.plan(`Automation workflow: ${text}`);
+    const steps = tasks.map((t) => t.title).filter(Boolean).slice(0, 8);
+    return steps.length ? { ...base, steps } : base;
+  } catch {
+    return base;
+  }
+}
+
 export function AutomationWizard({ initial, onCreate, onClose, title = 'Create Automation' }: { initial?: Draft; onCreate: (d: Draft) => void; onClose: () => void; title?: string }) {
   const [step, setStep] = useState(initial ? 1 : 0);
   const [text, setText] = useState(initial?.description ?? '');
   const [d, setD] = useState<Draft | null>(initial ?? null);
+  const [building, setBuilding] = useState(false);
   const steps = ['Describe', 'Trigger & actions', 'Review'];
   return (
     <FuturisticModal title={title} icon={Wand2} onClose={onClose}>
@@ -106,7 +120,7 @@ export function AutomationWizard({ initial, onCreate, onClose, title = 'Create A
         <div className="stack" style={{ gap: 12 }}>
           <label htmlFor="wz-text" className="t-sub">Describe what you want to automate in plain language.</label>
           <textarea id="wz-text" className="hud-textarea" rows={4} value={text} onChange={(e) => setText(e.target.value)} placeholder='e.g. "When I receive an email from my manager, add it to my tasks and notify me on Slack"' autoFocus />
-          <div className="row" style={{ justifyContent: 'flex-end' }}><NeonButton variant="primary" disabled={!text.trim()} onClick={() => { setD(draftFromText(text)); setStep(1); }}>Build with AURA</NeonButton></div>
+          <div className="row" style={{ justifyContent: 'flex-end' }}><NeonButton variant="primary" disabled={!text.trim() || building} onClick={() => { setBuilding(true); void buildDraft(text).then((draft) => { setD(draft); setStep(1); }).finally(() => setBuilding(false)); }}>{building ? <span className="spinner" /> : 'Build with AURA'}</NeonButton></div>
         </div>
       )}
       {step === 1 && d && (

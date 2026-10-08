@@ -1,17 +1,24 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { motion, useReducedMotion } from 'framer-motion';
 import {
   Brain, Network, Crosshair, ShieldCheck, SlidersHorizontal, TrendingUp, User, Lock, Eye, EyeOff, Mail, Phone, Zap, Check,
   Briefcase, HeartPulse, BarChart3, Plane, BookOpen, Leaf, ShoppingCart, Users, MoreHorizontal, Clock, Sun,
   Laptop, Moon, Building2, Dumbbell, Utensils, Settings2, ArrowLeft, ArrowRight, Target, Globe, Github, Apple,
 } from 'lucide-react';
-import { AuraAvatar, AuraLogo, AppLogo, HudInput, IconBox, NeonButton, Toggle, Wave } from '../components/aura';
+import { AuraAvatar, AuraLogo, AppLogo, HudInput, IconBox, NeonButton, Wave } from '../components/aura';
+import { staggerContainer, staggerItem, EASE } from '../components/motion';
+import { signInWithGoogle, signInWithEmail, signUpWithEmail, getSession, AuthNotConfiguredError } from '../services/auth';
+import { profileStore } from '../state/stores';
 
 function Stage({ children }: { children: ReactNode }) {
+  const reduceMotion = useReducedMotion();
   return (
     <div className="auth-wrap">
       <div className="space-bg" />
-      {children}
+      <motion.div initial={reduceMotion ? false : { opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: EASE }}>
+        {children}
+      </motion.div>
     </div>
   );
 }
@@ -24,7 +31,18 @@ function PasswordToggle({ show, onToggle }: { show: boolean; onToggle: () => voi
   );
 }
 
-function Social({ providers }: { providers: ('google' | 'apple' | 'microsoft' | 'github')[] }) {
+function Social({ providers, onError }: { providers: ('google' | 'apple' | 'microsoft' | 'github')[]; onError?: (msg: string) => void }) {
+  const handleClick = async (provider: 'google' | 'apple' | 'microsoft' | 'github') => {
+    if (provider !== 'google') {
+      onError?.(`${provider[0].toUpperCase()}${provider.slice(1)} sign-in isn't wired up yet — use Google or email.`);
+      return;
+    }
+    try {
+      await signInWithGoogle();
+    } catch (err) {
+      onError?.(err instanceof AuthNotConfiguredError ? err.message : 'Google sign-in failed. Please try again.');
+    }
+  };
   const glyph = {
     google: <span style={{ font: '800 24px Inter', background: 'conic-gradient(from -45deg, #ea4335 0 25%, #fbbc05 0 50%, #34a853 0 75%, #4285f4 0)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>G</span>,
     apple: <Apple size={24} color="#fff" fill="#fff" />,
@@ -40,7 +58,7 @@ function Social({ providers }: { providers: ('google' | 'apple' | 'microsoft' | 
     <>
       <div className="divider">Or continue with</div>
       <div className="social">
-        {providers.map((p) => <button key={p} type="button" className="icon-btn" aria-label={`Continue with ${p}`}>{glyph[p]}</button>)}
+        {providers.map((p) => <button key={p} type="button" className="icon-btn" aria-label={`Continue with ${p}`} onClick={() => handleClick(p)}>{glyph[p]}</button>)}
       </div>
     </>
   );
@@ -69,8 +87,23 @@ function FeatTile({ icon: Icon, label }: { icon: typeof Brain; label: string }) 
   );
 }
 
+const BRAND = ['A', 'U', 'R', 'A'];
+const letterIn = { hidden: { opacity: 0, y: 24, filter: 'blur(6px)' }, show: { opacity: 1, y: 0, filter: 'blur(0px)' } };
+
+/** The saved session survives app restarts, so a signed-in user skips the splash/login screens. */
+function useSkipIfSignedIn() {
+  const nav = useNavigate();
+  useEffect(() => {
+    let live = true;
+    void getSession().then((s) => { if (live && s) nav('/dashboard', { replace: true }); }).catch(() => undefined);
+    return () => { live = false; };
+  }, [nav]);
+}
+
 export function Splash() {
   const nav = useNavigate();
+  useSkipIfSignedIn();
+  const reduceMotion = useReducedMotion();
   const [booted, setBooted] = useState(0);
   useEffect(() => {
     if (booted >= bootLines.length) return;
@@ -83,49 +116,67 @@ export function Splash() {
     <Stage>
       <div className="landing">
         <div className="landing-top">
-          <div className="hud corners landing-side" aria-live="polite">
+          <motion.div className="hud corners landing-side" aria-live="polite" initial={reduceMotion ? false : { opacity: 0, x: -24 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5, ease: EASE }}>
             <div className="hud-label" style={{ marginBottom: 10 }}>Initializing AURA Core…</div>
             {bootLines.map((l, i) => (
-              <div key={l} className="row between mono" style={{ padding: '3px 0', fontSize: 11.5, textTransform: 'uppercase', color: i < booted ? '#fff' : 'var(--aura-muted)' }}>
+              <motion.div
+                key={l} className="row between mono" style={{ padding: '3px 0', fontSize: 11.5, textTransform: 'uppercase', color: i < booted ? '#fff' : 'var(--aura-muted)' }}
+                animate={i === booted - 1 && !reduceMotion ? { x: [0, 3, 0] } : undefined} transition={{ duration: 0.3 }}
+              >
                 {l}
                 {i < booted ? <Check size={14} className="c-cyan" /> : <span className="spinner" style={{ width: 11, height: 11 }} />}
-              </div>
+              </motion.div>
             ))}
-          </div>
+            <div style={{ height: 3, borderRadius: 2, background: 'rgba(25,230,255,0.12)', marginTop: 10, overflow: 'hidden' }}>
+              <motion.div style={{ height: '100%', background: 'var(--aura-cyan)', boxShadow: '0 0 8px var(--aura-cyan)' }} animate={{ width: `${(booted / bootLines.length) * 100}%` }} transition={{ duration: 0.35, ease: EASE }} />
+            </div>
+          </motion.div>
           <div style={{ textAlign: 'center', flex: 1 }}>
-            <h1 className="brand-name" style={{ fontSize: 'clamp(64px, 10vw, 118px)', letterSpacing: 12 }}>AURA</h1>
-            <div style={{ letterSpacing: 9, fontSize: 'clamp(15px, 1.8vw, 22px)', marginTop: 12 }}>YOUR AI CO-PILOT</div>
-            <div className="t-sub" style={{ letterSpacing: 5, marginTop: 16, fontSize: 12.5 }}>THINK • PLAN • DECIDE • ACT • WITH YOU</div>
-            <div style={{ width: 44, height: 2, margin: '16px auto 0', background: 'var(--aura-cyan)', boxShadow: '0 0 10px var(--aura-cyan)' }} />
+            <motion.h1
+              className="brand-name" style={{ fontSize: 'clamp(64px, 10vw, 118px)', letterSpacing: 12, display: 'inline-flex' }}
+              initial={reduceMotion ? false : 'hidden'} animate="show" variants={{ show: { transition: { staggerChildren: 0.12 } } }}
+            >
+              {BRAND.map((ch, i) => <motion.span key={i} variants={letterIn} transition={{ duration: 0.5, ease: EASE }}>{ch}</motion.span>)}
+            </motion.h1>
+            <motion.div style={{ letterSpacing: 9, fontSize: 'clamp(15px, 1.8vw, 22px)', marginTop: 12 }} initial={reduceMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.55, duration: 0.5 }}>YOUR AI CO-PILOT</motion.div>
+            <motion.div className="t-sub" style={{ letterSpacing: 5, marginTop: 16, fontSize: 12.5 }} initial={reduceMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.7, duration: 0.5 }}>THINK • PLAN • DECIDE • ACT • WITH YOU</motion.div>
+            <motion.div style={{ width: 44, height: 2, margin: '16px auto 0', background: 'var(--aura-cyan)', boxShadow: '0 0 10px var(--aura-cyan)' }} initial={reduceMotion ? false : { scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ delay: 0.85, duration: 0.4 }} />
           </div>
-          <div className="hud corners landing-side">
+          <motion.div className="hud corners landing-side" initial={reduceMotion ? false : { opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5, ease: EASE }}>
             <div className="hud-label" style={{ marginBottom: 8 }}>User-centric AI ecosystem</div>
             <div style={{ width: 70, height: 70, borderRadius: '50%', margin: '4px auto 8px', background: 'radial-gradient(circle at 35% 35%, #3fa9ff, #07306e 60%, #020a1a)', boxShadow: '0 0 20px rgba(0,175,255,0.6)', display: 'grid', placeItems: 'center' }}><Globe size={40} strokeWidth={1} color="#9fe6ff" /></div>
             {['Understand', 'Reason', 'Coordinate', 'Decide', 'Assist', 'Evolve'].map((x) => (
               <div key={x} className="mono" style={{ padding: '2px 0', color: 'var(--aura-text-2)', fontSize: 11, textTransform: 'uppercase' }}>▫ {x}</div>
             ))}
-          </div>
+          </motion.div>
         </div>
 
-        <div className="landing-core">
-          <div className="landing-feats">{featLeft.map((f) => <FeatTile key={f.label} {...f} />)}</div>
-          <div className="landing-entity">
+        <motion.div className="landing-core" initial={false} animate={ready ? 'show' : 'hidden'} variants={staggerContainer}>
+          <motion.div className="landing-feats" variants={staggerItem}>{featLeft.map((f) => <FeatTile key={f.label} {...f} />)}</motion.div>
+          <motion.div
+            className="landing-entity"
+            initial={reduceMotion ? false : { opacity: 0, scale: 0.9 }}
+            animate={ready ? { opacity: 1, scale: 1, filter: ['drop-shadow(0 0 0px rgba(0,217,255,0))', 'drop-shadow(0 0 28px rgba(0,217,255,0.55))', 'drop-shadow(0 0 14px rgba(0,217,255,0.3))'] } : { opacity: 0.35, scale: 0.96 }}
+            transition={{ duration: 0.8, ease: EASE }}
+          >
             <AuraAvatar art="core" size={420} height={520} square state={ready ? 'idle' : 'thinking'} rings={false} />
             <div className="landing-beam" aria-hidden />
             <div className="landing-pad" aria-hidden />
-          </div>
-          <div className="landing-feats">{featRight.map((f) => <FeatTile key={f.label} {...f} />)}</div>
-        </div>
+          </motion.div>
+          <motion.div className="landing-feats" variants={staggerItem}>{featRight.map((f) => <FeatTile key={f.label} {...f} />)}</motion.div>
+        </motion.div>
 
         <div style={{ textAlign: 'center' }}>
           <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(22px, 3vw, 34px)', letterSpacing: 3, fontWeight: 700 }}>MORE THAN AN ASSISTANT</h2>
           <p className="t-sub" style={{ letterSpacing: 3, marginTop: 10, fontSize: 13, lineHeight: 1.7 }}>A PERSONAL AI ECOSYSTEM THAT UNDERSTANDS,<br />PLANS, AND ACTS WITH YOU.</p>
         </div>
-        <NeonButton variant="primary" size="lg" hex display chevron disabled={!ready} style={{ minWidth: 'min(420px, 90vw)', height: 64, fontSize: 20 }} onClick={() => nav('/signup')}>
-          {ready ? 'GET STARTED' : 'INITIALIZING…'}
-        </NeonButton>
+        <motion.div animate={ready && !reduceMotion ? { scale: [1, 1.05, 1] } : { scale: 1 }} transition={{ duration: 0.5, ease: EASE }}>
+          <NeonButton variant="primary" size="lg" hex display chevron disabled={!ready} style={{ minWidth: 'min(420px, 90vw)', height: 64, fontSize: 20 }} onClick={() => nav('/signup')}>
+            {ready ? 'GET STARTED' : 'INITIALIZING…'}
+          </NeonButton>
+        </motion.div>
         <div className="stack" style={{ alignItems: 'center', gap: 10 }}>
-          <div className="row" aria-hidden>{[0, 1, 2, 3, 4].map((i) => <span key={i} className={`dot ${i ? 'off' : 'cyan'}`} style={{ width: 10, height: 10 }} />)}</div>
+          <div className="row" aria-hidden>{[0, 1, 2, 3, 4].map((i) => <span key={i} className={`dot ${i < booted ? 'cyan' : 'off'}`} style={{ width: 10, height: 10, transition: 'background 0.3s' }} />)}</div>
           <span className="t-sub" style={{ letterSpacing: 4, fontSize: 11 }}>YOUR JOURNEY BEGINS</span>
           <Link to="/login" className="t-sub" style={{ marginTop: 4 }}>Already have an account? <span className="c-cyan">Log in</span></Link>
         </div>
@@ -138,18 +189,26 @@ export function Splash() {
 
 export function Login() {
   const nav = useNavigate();
+  useSkipIfSignedIn();
   const [email, setEmail] = useState('');
   const [pw, setPw] = useState('');
   const [show, setShow] = useState(false);
   const [remember, setRemember] = useState(true);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  const submit = (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!email.trim() || !pw) return setErr('Enter your username/email and password.');
     setErr('');
     setBusy(true);
-    setTimeout(() => nav('/dashboard'), 700);
+    try {
+      await signInWithEmail(email, pw);
+      nav('/dashboard');
+    } catch (err) {
+      setErr(err instanceof AuthNotConfiguredError ? err.message : err instanceof Error ? err.message : 'Login failed.');
+    } finally {
+      setBusy(false);
+    }
   };
   return (
     <Stage>
@@ -173,7 +232,7 @@ export function Login() {
           </div>
           {err && <div className="tag red" role="alert" style={{ padding: 8 }}>{err}</div>}
           <NeonButton variant="primary" size="lg" hex display chevron block disabled={busy} type="submit">{busy ? <span className="spinner" /> : 'LOGIN'}</NeonButton>
-          <Social providers={['google', 'microsoft', 'github']} />
+          <Social providers={['google', 'microsoft', 'github']} onError={setErr} />
           <p className="t-sub" style={{ textAlign: 'center', fontSize: 14 }}>Don't have an account? <Link to="/signup" className="c-blue" style={{ fontWeight: 600 }}>Sign Up</Link></p>
         </form>
       </div>
@@ -189,15 +248,24 @@ export function Signup() {
   const [show, setShow] = useState({ pw: false, confirm: false });
   const [agree, setAgree] = useState(false);
   const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
   const set = (k: keyof typeof f) => (e: ChangeEvent<HTMLInputElement>) => setF((s) => ({ ...s, [k]: e.target.value }));
-  const submit = (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!f.name.trim() || !/\S+@\S+\.\S+/.test(f.email)) return setErr('Enter your full name and a valid email.');
     if (f.pw.length < 8) return setErr('Password must be at least 8 characters.');
     if (f.pw !== f.confirm) return setErr('Passwords do not match.');
     if (!agree) return setErr('Please accept the Terms of Service and Privacy Policy.');
     setErr('');
-    nav('/onboarding');
+    setBusy(true);
+    try {
+      await signUpWithEmail(f.email, f.pw, f.name);
+      nav('/onboarding');
+    } catch (err_) {
+      setErr(err_ instanceof AuthNotConfiguredError ? err_.message : err_ instanceof Error ? err_.message : 'Sign up failed.');
+    } finally {
+      setBusy(false);
+    }
   };
   const feats = [
     { icon: Brain, t: 'Personalized Intelligence', s: 'Learns your preferences' },
@@ -250,8 +318,8 @@ export function Signup() {
                 <span>I agree to the <a className="c-blue" href="#terms">Terms of Service</a> and <a className="c-blue" href="#privacy">Privacy Policy</a></span>
               </label>
               {err && <div className="tag red" style={{ padding: 8, whiteSpace: 'normal' }} role="alert">{err}</div>}
-              <NeonButton variant="primary" size="lg" hex display chevron block type="submit">SIGN UP</NeonButton>
-              <Social providers={['google', 'apple', 'microsoft']} />
+              <NeonButton variant="primary" size="lg" hex display chevron block type="submit" disabled={busy}>{busy ? <span className="spinner" /> : 'SIGN UP'}</NeonButton>
+              <Social providers={['google', 'apple', 'microsoft']} onError={setErr} />
             </form>
           </div>
         </div>
@@ -275,7 +343,7 @@ const goals: { label: string; icon: typeof Brain }[] = [
   { label: 'Other (Custom)', icon: MoreHorizontal },
 ];
 
-const routine: { icon: typeof Brain; label: string; opts: string[] }[] = [
+const routine_: { icon: typeof Brain; label: string; opts: string[] }[] = [
   { icon: Sun, label: 'Wake up time', opts: ['07:00 AM', '06:00 AM', '08:00 AM'] },
   { icon: Laptop, label: 'Work / Study hours', opts: ['09:00 AM – 06:00 PM', '10:00 AM – 07:00 PM', 'Flexible'] },
   { icon: Moon, label: 'Sleep time', opts: ['11:30 PM', '10:30 PM', '12:30 AM'] },
@@ -285,22 +353,30 @@ const routine: { icon: typeof Brain; label: string; opts: string[] }[] = [
 ];
 
 const prefs: [string, string[]][] = [
+  ['Gender', ['Prefer not to say', 'Female', 'Male', 'Non-binary']],
   ['Communication Style', ['Friendly & Professional', 'Concise', 'Detailed']],
   ['Response Detail Level', ['Balanced', 'Brief', 'In-depth']],
   ['Decision Style', ['Suggest with Explanation', 'Suggest Only', 'Prepare for Approval']],
   ['Language', ['English', 'Hindi', 'Marathi']],
 ];
 
-const appDesc: Record<string, string> = {
-  'Google Calendar': 'Sync meetings and events', Gmail: 'Manage and summarize emails', 'Google Maps': 'Travel, location and commute',
-  'Zomato / Swiggy': 'Food recommendations', Amazon: 'Shopping and price tracking', 'Phone (Permissions)': 'Calls, SMS (with consent)', Weather: 'Weather alerts and travel planning',
-};
-
 export function Personalize() {
   const nav = useNavigate();
   const [sel, setSel] = useState<string[]>(['Career Growth', 'Financial Stability', 'Better Productivity']);
-  const [apps, setApps] = useState<Record<string, boolean>>({ 'Google Calendar': true, Gmail: false, 'Google Maps': true, 'Zomato / Swiggy': false, Amazon: false, 'Phone (Permissions)': false, Weather: true });
-  const [privacy, setPrivacy] = useState({ learn: true, personal: true, proactive: true });
+  const [routineVals, setRoutineVals] = useState<Record<string, string>>({});
+  const [prefVals, setPrefVals] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const finish = async () => {
+    setSaving(true);
+    try {
+      const routine = Object.fromEntries(routine_.map((r) => [r.label, routineVals[r.label] ?? r.opts[0]]));
+      const preferences = Object.fromEntries(prefs.map(([label, opts]) => [label, prefVals[label] ?? opts[0]]));
+      profileStore.set([{ id: 'me', goals: sel, routine, preferences }]);
+    } finally {
+      setSaving(false);
+      nav('/dashboard');
+    }
+  };
   const toggleGoal = (g: string) => setSel((s) => (s.includes(g) ? s.filter((x) => x !== g) : [...s, g]));
 
   return (
@@ -356,11 +432,11 @@ export function Personalize() {
             <div className="hud corners">
               <div className="hud-head"><IconBox icon={Clock} round /><div><h3>Your Daily Routine</h3><div className="sub">Help AURA understand your typical day</div></div></div>
               <div className="list">
-                {routine.map((r) => (
+                {routine_.map((r) => (
                   <div className="li" key={r.label}>
                     <r.icon size={20} className="c-cyan" />
                     <label className="grow" htmlFor={`rt-${r.label}`}>{r.label}</label>
-                    <select id={`rt-${r.label}`} className="select" style={{ minWidth: 150 }}>{r.opts.map((o) => <option key={o}>{o}</option>)}</select>
+                    <select id={`rt-${r.label}`} className="select" style={{ minWidth: 150 }} value={routineVals[r.label] ?? r.opts[0]} onChange={(e) => setRoutineVals((v) => ({ ...v, [r.label]: e.target.value }))}>{r.opts.map((o) => <option key={o}>{o}</option>)}</select>
                   </div>
                 ))}
               </div>
@@ -371,7 +447,7 @@ export function Personalize() {
                 {prefs.map(([label, opts]) => (
                   <div className="li" key={label}>
                     <label className="grow" htmlFor={`pf-${label}`}>{label}</label>
-                    <select id={`pf-${label}`} className="select" style={{ minWidth: 'min(220px, 50vw)' }}>{opts.map((o) => <option key={o}>{o}</option>)}</select>
+                    <select id={`pf-${label}`} className="select" style={{ minWidth: 'min(220px, 50vw)' }} value={prefVals[label] ?? opts[0]} onChange={(e) => setPrefVals((v) => ({ ...v, [label]: e.target.value }))}>{opts.map((o) => <option key={o}>{o}</option>)}</select>
                   </div>
                 ))}
               </div>
@@ -379,26 +455,15 @@ export function Personalize() {
           </div>
           <div className="stack">
             <div className="hud corners">
-              <div className="hud-head"><IconBox icon={Network} round /><div><h3>Connect Your Apps</h3><div className="sub">Allow AURA to access these apps for better assistance</div></div></div>
+              <div className="hud-head"><IconBox icon={Network} tone="blue" round /><div><h3>Connect Your Apps</h3><div className="sub">Link Google so AURA can see your real calendar.</div></div></div>
               <div className="list">
-                {Object.entries(apps).map(([name, on]) => (
-                  <div className="li" key={name}>
-                    <AppLogo name={name} size={36} />
-                    <div className="grow"><div className="t-title">{name}</div><div className="t-sub">{appDesc[name]}</div></div>
-                    {on ? <span className="pill-status hide-sm"><span className="dot" /> Connected</span> : <button className="btn sm hide-sm" onClick={() => setApps((a) => ({ ...a, [name]: true }))}>Connect</button>}
-                    <Toggle on={on} onChange={(v) => setApps((a) => ({ ...a, [name]: v }))} label={`Connect ${name}`} />
-                  </div>
-                ))}
+                <div className="li">
+                  <AppLogo name="Google Calendar" size={36} />
+                  <div className="grow"><div className="t-title">Google Calendar</div><div className="t-sub">Sync meetings and events</div></div>
+                  <button type="button" className="btn sm" onClick={() => void signInWithGoogle().catch(() => undefined)}>Connect</button>
+                </div>
               </div>
-            </div>
-            <div className="hud corners">
-              <div className="hud-head"><IconBox icon={ShieldCheck} round /><div><h3>Privacy & Control</h3><div className="sub">You are always in control</div></div></div>
-              <div className="list">
-                {([['learn', 'Allow AURA to learn from my activity'], ['personal', 'Use my data for personalized suggestions'], ['proactive', 'Enable proactive notifications']] as const).map(([k, l]) => (
-                  <div className="li" key={k}><span className="grow">{l}</span><Toggle on={privacy[k]} onChange={(v) => setPrivacy((p) => ({ ...p, [k]: v }))} label={l} /></div>
-                ))}
-              </div>
-              <a href="#privacy" className="c-blue row" style={{ justifyContent: 'flex-end', fontSize: 13 }}>Learn More <ArrowRight size={13} /></a>
+              <p className="t-mute" style={{ marginTop: 8 }}>You can connect or revoke access any time in Integrations. Nothing is shared until you connect.</p>
             </div>
           </div>
         </div>
@@ -406,7 +471,7 @@ export function Personalize() {
         <div className="row between wrap" style={{ gap: 14 }}>
           <NeonButton size="lg" onClick={() => nav('/signup')}><ArrowLeft size={18} /> Back</NeonButton>
           <div className="row hide-sm" aria-hidden><span className="dot off" /><span className="dot off" /><span className="dot cyan" /></div>
-          <NeonButton variant="primary" size="lg" hex chevron onClick={() => nav('/dashboard')} style={{ minWidth: 'min(380px, 100%)' }}>Continue to Command Center</NeonButton>
+          <NeonButton variant="primary" size="lg" hex chevron onClick={() => void finish()} disabled={saving} style={{ minWidth: 'min(380px, 100%)' }}>Continue to Command Center</NeonButton>
         </div>
       </div>
     </Stage>
