@@ -23,3 +23,7 @@ aura-web/android/app/src/main/assets/model-en-in/
 
 # shareable APKs
 /release/
+
+# local API keys for deploy tools (never commit)
+.render-key
+.uptimerobot-key

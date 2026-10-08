@@ -4,7 +4,7 @@
 # (docker-compose.yml still runs them as two separate containers for local use.)
 
 # ---- backend: compile TypeScript, then install only what it needs at runtime
-FROM node:20-slim AS backend-build
+FROM node:22-slim AS backend-build
 WORKDIR /backend
 COPY backend/package.json ./
 RUN npm install
@@ -12,7 +12,7 @@ COPY backend/tsconfig.json ./
 COPY backend/src ./src
 RUN npm run build
 
-FROM node:20-slim AS backend-deps
+FROM node:22-slim AS backend-deps
 WORKDIR /backend
 COPY backend/package.json ./
 RUN npm install --omit=dev
@@ -21,7 +21,7 @@ RUN npm install --omit=dev
 FROM python:3.12-slim
 # libgomp1: the OpenMP runtime LightGBM needs
 RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 && rm -rf /var/lib/apt/lists/*
-COPY --from=node:20-slim /usr/local/bin/node /usr/local/bin/node
+COPY --from=node:22-slim /usr/local/bin/node /usr/local/bin/node
 RUN useradd --create-home --shell /bin/bash aura
 
 WORKDIR /app/ai-service
