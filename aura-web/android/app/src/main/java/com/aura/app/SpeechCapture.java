@@ -131,6 +131,10 @@ final class SpeechCapture {
         recognizer.startListening(intent);
     }
 
+    private boolean heardAnything() {
+        return heard.length() > 0 || !partial.isEmpty();
+    }
+
     private String soFar() {
         return (heard + " " + partial).trim().replaceAll("\\s+", " ");
     }
@@ -273,6 +277,11 @@ final class SpeechCapture {
                     break;
                 case SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS:
                     finish("Microphone permission is off for AURA.");
+                    break;
+                case SpeechRecognizer.ERROR_AUDIO:
+                case SpeechRecognizer.ERROR_RECOGNIZER_BUSY:
+                    // another app (a call, a recorder) has the microphone: say so instead of closing silently
+                    finish(heardAnything() ? null : "I can't use the microphone right now. Another app may be using it.");
                     break;
                 default:
                     finish(null);   // silence / no match: nothing was said

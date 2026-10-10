@@ -34,7 +34,8 @@ KIND_CATEGORIES: dict[str, set[str]] = {
 KIND = {"blinkit": "quick_commerce", "zepto": "quick_commerce", "instamart": "quick_commerce", "bigbasket": "grocery",
         "jiomart": "grocery", "dmart": "grocery", "amazon": "marketplace", "flipkart": "marketplace",
         "meesho": "marketplace", "myntra": "fashion", "ajio": "fashion", "nykaa": "beauty", "1mg": "pharmacy",
-        "pharmeasy": "pharmacy", "croma": "electronics", "zomato": "food_delivery"}
+        "pharmeasy": "pharmacy", "croma": "electronics", "zomato": "food_delivery", "swiggy": "food_delivery",
+        "dominos": "food_delivery"}
 KIND_LABEL = {"quick_commerce": "quick-delivery app", "grocery": "grocery store", "marketplace": "marketplace",
               "fashion": "fashion store", "beauty": "beauty store", "pharmacy": "pharmacy",
               "electronics": "electronics store", "food_delivery": "food-delivery app"}

@@ -20,7 +20,7 @@ import structlog
 
 from app.agents.base import BaseAgent
 from app.ml.shopping_catalog import (APPS, CATALOG, CATEGORIES, FOOD_APPS, RESTAURANT_FOOD, canonical_app, canonical_item,
-                                     dish_item, item_category, item_price)
+                                     dish_item, is_prepared_food, item_category, item_price)
 from app.ml.shopping_predictor import get_predictor, now_ist, retrain_scheduler
 from app.models.schemas import AgentResult
 from app.services import shopping_service
@@ -262,7 +262,10 @@ class ShoppingAgent(BaseAgent):
         policy = await load_policy(user_id)
         named = canonical_app(store_said) if store_said else None
         dishes = [p for p in product_profile(events) if p["category"] == RESTAURANT_FOOD]
-        food = bool(named in FOOD_APPS or (not named and all(_match_dish(i["name"], dishes) for i in items)))
+        prepared = bool(items) and all(is_prepared_food(i["name"]) for i in items)
+        if named == "Swiggy" and not prepared and not all(_match_dish(i["name"], dishes) for i in items):
+            named = "Swiggy Instamart"   # "milk from Swiggy" means its grocery side
+        food = bool(named in FOOD_APPS or (not named and (prepared or all(_match_dish(i["name"], dishes) for i in items))))
 
         basket, explicit = [], True
         for i in items:

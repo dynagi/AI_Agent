@@ -43,6 +43,18 @@ final class WakeGate {
     }
 
     /**
+     * Why "Hey Aura" can't be heard right now, in words for the user; null when nothing is in the way. Android gives
+     * the microphone to phone calls and internet calls (Google Meet, WhatsApp), and may silence a background listener
+     * while another app records. AURA doesn't work around that: it waits, and says so.
+     */
+    static String micBlockedReason(boolean phoneCall, boolean internetCall, boolean silencedByAnotherApp) {
+        if (phoneCall) return "You're on a phone call, so I can't hear \"Hey Aura\" until it ends.";
+        if (internetCall) return "Another app is in a call (like Meet or WhatsApp), so I can't hear \"Hey Aura\" until it ends.";
+        if (silencedByAnotherApp) return "Another app is using the microphone, so I can't hear \"Hey Aura\" right now.";
+        return null;
+    }
+
+    /**
      * Whether a recogniser result is the wake phrase. `json` is the recogniser's result ({"text": ..., "result":
      * [{"word", "conf"}...]}); `isFinal` is false for partial results, which never count.
      */

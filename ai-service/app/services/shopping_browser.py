@@ -69,9 +69,20 @@ STORES: dict[str, dict] = {
                           "is a restaurant, then ADD the dish there. If a customisation sheet opens, keep the defaults "
                           "and confirm with its Add item button.",
                "historyHint": "Orders are under the profile icon > Your orders."},
+    "swiggy": {"name": "Swiggy", "home": "https://www.swiggy.com/", "search": "https://www.swiggy.com/search?query={q}",
+               "package": "in.swiggy.android", "appLabel": "Swiggy",
+               "appHint": "Food delivery (the Food tab, not Instamart): search the dish, open a restaurant that serves "
+                          "it (see the item's hint if there is one), then ADD the dish there. If a customisation "
+                          "sheet opens, keep the defaults and confirm with its Add item button.",
+               "historyHint": "Orders are under Account > Orders."},
+    "dominos": {"name": "Domino's", "home": "https://www.dominos.co.in/", "search": "https://www.dominos.co.in/menu",
+                "package": "com.Dominos", "appLabel": "Domino's",
+                "appHint": "Pizza delivery from one restaurant: find the pizza or side in the menu (or its search), "
+                           "ADD it; if a size or crust sheet opens, keep the defaults and confirm.",
+                "historyHint": "Orders are under the profile / menu icon > Order history."},
     "dmart": {"name": "DMart Ready", "home": "https://www.dmart.in/", "search": "https://www.dmart.in/search?searchTerm={q}"},
 }
-_ALIASES = {"swiggy instamart": "instamart", "swiggy": "instamart", "big basket": "bigbasket", "jio mart": "jiomart",
+_ALIASES = {"swiggy instamart": "instamart", "big basket": "bigbasket", "jio mart": "jiomart",
             "amazon fresh": "amazon", "amazon.in": "amazon", "tata 1mg": "1mg", "dmart ready": "dmart",
             "flipkart minutes": "flipkart", "grofers": "blinkit"}
 

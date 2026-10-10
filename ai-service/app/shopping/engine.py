@@ -213,9 +213,15 @@ def decide(session: ShoppingSession, prefs: ShoppingPreferences, policy: Shoppin
     session.pending, session.provider = "choose_provider", None
     intro = (f"I can get your usual {_basket(items)} from {len(shown)} stores" if known
              else f"{_basket(items)} isn't something I've seen you buy, so I won't assume. I can get it from")
-    lines = "; ".join(describe(o) for o in shown)
     unchecked = sum(1 for o in shown if o.final_cost is None)
-    caveat = " I haven't read live prices yet, so I can't say which is cheapest." if unchecked == len(shown) else ""
+    if unchecked == len(shown):
+        # nothing known about any of them: name the stores once instead of repeating "price not checked" for each
+        names = [o.label for o in shown]
+        lines = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " or " + names[-1]
+        caveat = " I haven't read their prices yet, so I can't say which is cheapest."
+    else:
+        lines = "; ".join(describe(o) for o in shown)
+        caveat = ""
     session.question = "Which one should I use?"
     sep = ": " if known else " "
     return Decision("ask", f"{intro}{sep}{lines}.{caveat} {session.question}", level)

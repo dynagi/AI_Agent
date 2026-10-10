@@ -55,7 +55,7 @@ def test_free_text_maps_to_catalog_items_and_stores():
     assert canonical_item("2 packets of Maggi") == "instant noodles"
     assert canonical_item("Surf Excel Easy Wash 1kg") == "detergent"
     assert canonical_item("Organic quinoa 500g") == "organic quinoa"  # unknown items keep their own name
-    assert canonical_app("swiggy") == "Swiggy Instamart"
+    assert canonical_app("swiggy") == "Swiggy" and canonical_app("swiggy instamart") == "Swiggy Instamart"
     assert canonical_app("Amazon") == "Amazon"
 
 
@@ -768,7 +768,7 @@ def test_same_product_across_stores():
 
 def test_providers_are_data_not_code():
     assert {"Blinkit", "Zepto", "Swiggy Instamart"} <= {p.name for p in registry.for_category("dairy")}
-    assert [p.name for p in registry.for_category("restaurant_food")] == ["Zomato"]
+    assert [p.name for p in registry.for_category("restaurant_food")] == ["Zomato", "Swiggy", "Domino's"]
     assert [p.name for p in registry.for_category("dairy", installed={"zapdo", "Amazon"})] == ["Zepto"]
     r = asyncio.run(registry.get("Zepto").search("milk"))
     assert r.status == "not_checked" and r.offers == []        # no API: it says so, it doesn't invent a price
@@ -817,7 +817,7 @@ def test_new_product_shows_options_without_inventing_numbers(monkeypatch, memory
     a = d["assist"]
     assert "cartOrder" not in d and a["question"] == "choose_provider" and a["level"] == 1
     assert all(o["final_cost"] is None and o["eta_minutes"] is None and o["source"] == "not_checked" for o in a["options"])
-    assert "price not checked yet" in a["say"] and "can't say which is cheapest" in a["say"]
+    assert "haven't read their prices yet" in a["say"] and "can't say which is cheapest" in a["say"]
     d = _ask("the cheapest one", monkeypatch)                       # no prices to compare: say so, keep asking
     assert "cartOrder" not in d and "don't have prices" in d["assist"]["say"] and d["assist"]["pending"]
     d = _ask("zapdo", monkeypatch)                                  # speech spelling of Zepto
@@ -923,3 +923,36 @@ def test_history_reading_gives_up_when_stuck_so_the_order_goes_ahead():
     assert not hr._stuck(req, other)                                              # a different tap is progress
     assert hr._stuck(sb.StepRequest(mode="app", phase="history", store="Blinkit", url="Account", step=8, ordersRead=0), other)
     assert not hr._stuck(sb.StepRequest(mode="app", phase="history", store="Blinkit", url="Account", step=8, ordersRead=2), other)
+
+
+def test_restaurant_food_goes_to_food_delivery_apps_not_grocery_stores(memory_store):
+    from app.ml.shopping_catalog import is_prepared_food
+    assert is_prepared_food("pizza") and is_prepared_food("a chicken burger") and is_prepared_food("veg biryani")
+    assert not is_prepared_food("pizza base") and not is_prepared_food("burger buns") and not is_prepared_food("milk")
+
+    def ask(message, uid=REAL):
+        r = asyncio.run(sa.ShoppingAgent().run(message, {"userId": uid}))
+        return r.data.get("assist"), r.data
+
+    for dish in ("order a pizza", "order a burger for me"):
+        sa.sessions.clear(REAL)
+        a, d = ask(dish)
+        assert a["question"] == "choose_provider" and "cartOrder" not in d          # asks, never guesses a store
+        assert "Zomato" in a["say"] and "Swiggy" in a["say"] and "Domino's" in a["say"]
+        assert "Blinkit" not in a["say"] and "Amazon" not in a["say"]                # not grocery / marketplace
+    a, d = ask("zomato")                                                             # the answer to "which one?"
+    assert d["cartOrder"]["store"] == "Zomato" and d["cartOrder"]["items"][0]["name"] == "burger"
+
+    sa.sessions.clear(REAL)
+    ask("order a burger")
+    a, d = ask("swiggy")
+    assert d["cartOrder"]["store"] == "Swiggy"                                       # the food side, not Instamart
+
+    sa.sessions.clear(REAL)
+    a, d = ask("order milk from swiggy")                                             # groceries: Swiggy's grocery side
+    assert "Swiggy Instamart" in a["say"]
+
+    sa.sessions.clear(REAL)
+    a, d = ask("order pizza base and burger buns")                                   # packaged: grocery stores
+    assert "Blinkit" in a["say"] and "Zomato" not in a["say"]
+    sa.sessions.clear(REAL)

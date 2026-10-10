@@ -112,7 +112,17 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
         instance = this;
         state = "loading";
         error = "";
+        if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)
+                != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            // the microphone permission was taken away: listening is impossible, so the setting goes off with it
+            saveSetting(this, false);
+            fail("Microphone permission is off for AURA.");
+            destroyed = true;
+            stopSelf();
+            return;
+        }
         startInForeground();
+        watchMicrophone();
         overlay = new AssistantOverlay(this, () -> endSession(0));
         capture = new SpeechCapture(this, this);
         capture.setChooser(ActionRouter::pickHypothesis);
@@ -178,6 +188,20 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
         else registerReceiver(debugTrigger, filter);
     }
 
+    private static final String LISTENING_TITLE = "AURA is listening for \"Hey Aura\"";
+    private static final String LISTENING_TEXT = "Only the wake phrase is detected, on this phone. Turn it off in AURA > Voice.";
+
+    private Notification notification(String title, String text) {
+        PendingIntent open = PendingIntent.getActivity(this, 0, new Intent(this, MainActivity.class),
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, CHANNEL) : new Notification.Builder(this);
+        return b.setContentTitle(title).setContentText(text)
+                .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+                .setOngoing(true)
+                .setContentIntent(open)
+                .build();
+    }
+
     private void startInForeground() {
         NotificationManager nm = getSystemService(NotificationManager.class);
         if (Build.VERSION.SDK_INT >= 26) {
@@ -185,19 +209,73 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
             ch.setDescription("Shown while AURA is listening for \"Hey Aura\"");
             nm.createNotificationChannel(ch);
         }
-        PendingIntent open = PendingIntent.getActivity(this, 0, new Intent(this, MainActivity.class),
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, CHANNEL) : new Notification.Builder(this);
-        Notification n = b.setContentTitle("AURA is listening for \"Hey Aura\"")
-                .setContentText("Only the wake phrase is detected, on this phone. Turn it off in AURA > Voice.")
-                .setSmallIcon(android.R.drawable.ic_btn_speak_now)
-                .setOngoing(true)
-                .setContentIntent(open)
-                .build();
+        Notification n = notification(LISTENING_TITLE, LISTENING_TEXT);
         if (Build.VERSION.SDK_INT >= 30) {
             startForeground(NOTIFICATION_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE);
         } else {
             startForeground(NOTIFICATION_ID, n);
+        }
+    }
+
+    // ------------------------------------------------------------------ other apps and the microphone
+    // Calls (phone, Meet, WhatsApp) and some recorders take the microphone; Android then feeds a background listener
+    // silence. AURA does not fight that: it notices, says so (notification, Voice screen), and carries on when the
+    // other app is done. Nothing is restarted in a loop.
+
+    private android.media.AudioManager audioManager;
+    private android.media.AudioManager.AudioRecordingCallback recordingWatcher;
+    private boolean micBlocked;
+    private final Runnable micCheck = new Runnable() {
+        @Override
+        public void run() {
+            if (destroyed) return;
+            checkMicrophone();
+            ui.postDelayed(this, 10000);   // call state has no callback before Android 12: a slow poll is enough
+        }
+    };
+
+    private void watchMicrophone() {
+        audioManager = (android.media.AudioManager) getSystemService(AUDIO_SERVICE);
+        if (audioManager == null) return;
+        if (Build.VERSION.SDK_INT >= 24) {
+            recordingWatcher = new android.media.AudioManager.AudioRecordingCallback() {
+                @Override
+                public void onRecordingConfigChanged(java.util.List<android.media.AudioRecordingConfiguration> configs) {
+                    checkMicrophone();
+                }
+            };
+            audioManager.registerAudioRecordingCallback(recordingWatcher, ui);
+        }
+        ui.postDelayed(micCheck, 10000);
+    }
+
+    private void checkMicrophone() {
+        if (destroyed || audioManager == null) return;
+        int mode = audioManager.getMode();
+        boolean silenced = false;
+        if (Build.VERSION.SDK_INT >= 29 && speech != null) {
+            for (android.media.AudioRecordingConfiguration c : audioManager.getActiveRecordingConfigurations()) {
+                // the wake listener's own stream (the only speech-recognition capture AURA runs while waiting)
+                if (c.getClientAudioSource() == android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION && c.isClientSilenced()) silenced = true;
+            }
+        }
+        String why = WakeGate.micBlockedReason(mode == android.media.AudioManager.MODE_IN_CALL,
+                mode == android.media.AudioManager.MODE_IN_COMMUNICATION, silenced);
+        if (inSession) return;   // an assistant session reports its own microphone problems
+        boolean blocked = why != null && settingOn(this);
+        if (blocked == micBlocked) return;
+        micBlocked = blocked;
+        NotificationManager nm = getSystemService(NotificationManager.class);
+        if (blocked) {
+            Log.i(TAG, "another app has the microphone: waiting");
+            state = "blocked";
+            error = why;
+            nm.notify(NOTIFICATION_ID, notification("\"Hey Aura\" is paused", why));
+        } else {
+            Log.i(TAG, "microphone free again");
+            error = "";
+            state = speech != null ? "listening" : paused ? "paused" : state;
+            nm.notify(NOTIFICATION_ID, notification(LISTENING_TITLE, LISTENING_TEXT));
         }
     }
 
@@ -506,6 +584,9 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
         inSession = false;
         afterSpeech = null;
         ui.removeCallbacksAndMessages(null);   // no delayed re-arm, session end or reply may run after this
+        if (audioManager != null && recordingWatcher != null && Build.VERSION.SDK_INT >= 24) {
+            audioManager.unregisterAudioRecordingCallback(recordingWatcher);
+        }
         if (debugTrigger != null) unregisterReceiver(debugTrigger);
         if (capture != null) capture.cancel();
         if (overlay != null) overlay.hide();

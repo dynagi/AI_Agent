@@ -1,5 +1,6 @@
 package com.aura.app;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -42,6 +43,16 @@ public class WakeGateTest {
         assertFalse(WakeGate.mayListen(true, false, true, false, false, true));   // the app's own mic button
         assertFalse(WakeGate.mayListen(true, false, true, true, false, false));   // paused
         assertFalse(WakeGate.mayListen(true, false, false, false, false, false)); // model not loaded yet
+    }
+
+    // ------------------------------------------------------------------ other apps using the microphone
+
+    @Test
+    public void callsAndOtherRecordersAreReportedNotFought() {
+        assertTrue(WakeGate.micBlockedReason(true, false, false).contains("phone call"));
+        assertTrue(WakeGate.micBlockedReason(false, true, false).contains("in a call"));     // Meet, WhatsApp
+        assertTrue(WakeGate.micBlockedReason(false, false, true).contains("using the microphone"));
+        assertEquals(null, WakeGate.micBlockedReason(false, false, false));                 // nothing in the way
     }
 
     // ------------------------------------------------------------------ what counts as "Hey Aura"

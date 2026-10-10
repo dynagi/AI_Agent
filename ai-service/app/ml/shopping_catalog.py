@@ -103,7 +103,8 @@ CATEGORY_APPS: dict[str, list[str]] = {
 
 _APP_ALIASES = {
     "blinkit": "Blinkit", "grofers": "Blinkit", "zepto": "Zepto", "instamart": "Swiggy Instamart",
-    "swiggy instamart": "Swiggy Instamart", "swiggy": "Swiggy Instamart", "bigbasket": "BigBasket",
+    "swiggy instamart": "Swiggy Instamart", "swiggy": "Swiggy", "swiggy food": "Swiggy", "bigbasket": "BigBasket",
+    "dominos": "Domino's", "domino's": "Domino's", "domino": "Domino's", "dominoes": "Domino's", "domino s": "Domino's",
     "big basket": "BigBasket", "bb": "BigBasket", "jiomart": "JioMart", "jio mart": "JioMart",
     "amazon": "Amazon", "amazon fresh": "Amazon", "flipkart": "Flipkart", "flipkart minutes": "Flipkart",
     "myntra": "Myntra", "aura": "AURA", "zomato": "Zomato",
@@ -112,7 +113,7 @@ _APP_ALIASES = {
     # how speech recognition tends to write them
     "blink it": "Blinkit", "blinket": "Blinkit", "blinkid": "Blinkit", "blanket": "Blinkit",
     "zapto": "Zepto", "zapdo": "Zepto", "zepdo": "Zepto", "jepto": "Zepto", "septo": "Zepto", "zeptoh": "Zepto",
-    "insta mart": "Swiggy Instamart", "instamat": "Swiggy Instamart", "swiggi": "Swiggy Instamart",
+    "insta mart": "Swiggy Instamart", "instamat": "Swiggy Instamart", "swiggi": "Swiggy", "swigy": "Swiggy",
     "jomato": "Zomato", "zomatto": "Zomato", "somato": "Zomato", "flip kart": "Flipkart", "mintra": "Myntra",
     "nika": "Nykaa", "nykaa fashion": "Nykaa", "misho": "Meesho", "big bucket": "BigBasket",
 }
@@ -179,6 +180,24 @@ def canonical_item(name: str | None) -> str:
 
 RESTAURANT_FOOD = "restaurant_food"
 FOOD_APPS = {"Zomato", "Swiggy", "EatSure", "Dominos", "Domino's"}
+
+# Cooked dishes people order from restaurants. "Order a pizza" is a food-delivery order (Zomato, Swiggy, Domino's),
+# never a grocery one. Packaged things that share a word (pizza base, burger buns, noodles, biscuits) stay groceries.
+_PREPARED = re.compile(
+    r"\b(pizzas?|burgers?|biryani|biriyani|dosas?|idlis?|vadas?|uttapam|momos?|shawarma|sandwich(?:es)?|wraps?|"
+    r"kathi rolls?|frankie|fried rice|manchurian|chowmein|chow mein|hakka noodles|pasta|lasagna|tacos?|burritos?|"
+    r"thali|meals?|kebabs?|kababs?|tikka|tandoori|butter chicken|paneer butter masala|dal makhani|chole bhature|"
+    r"pav bhaji|vada pav|samosas?|pakoras?|parathas?|naan|kulcha|korma|curry|shake|milkshake|smoothie|"
+    r"french fries|fries|nuggets|fried chicken|wings|sushi|ramen|waffles?|pancakes?|brownie sundae|"
+    r"lunch|dinner|breakfast|food|something to eat)\b", re.I)
+_PACKAGED = re.compile(r"\b(base|bases|buns?|sauce|mix|masala powder|frozen|instant|packet|pack|maggi|cup noodles|"
+                       r"seasoning|dough|flour|atta|bread crumbs)\b", re.I)
+
+
+def is_prepared_food(name: str | None) -> bool:
+    """'pizza', 'a chicken burger', 'veg biryani' -> True; 'pizza base', 'burger buns', 'milk' -> False."""
+    text = str(name or "")
+    return bool(_PREPARED.search(text)) and not _PACKAGED.search(text)
 
 
 def dish_item(name: str | None) -> str:
