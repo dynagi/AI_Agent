@@ -30,9 +30,33 @@ public class AuraWakePlugin extends Plugin {
     /** The web app has taken the microphone (so the service must not re-arm by itself). */
     static volatile boolean appHolding;
 
+    /** A command handed to the app (WakeWordService brought it forward); delivered again if the app restarted. */
+    private static JSObject handedOver;
+
     @Override
     public void load() {
         instance = this;
+        JSObject pending = handedOver;
+        // the app was restarted to answer it: keep the command until the app's listener is registered
+        if (pending != null) notifyListeners("wakeCommand", pending, true);
+    }
+
+    /**
+     * Hands a command to the app after bringing it forward. A web view that was only asleep gets it again right away
+     * (it ignores a repeated id); one that Android had closed gets it when the restarted app is ready.
+     */
+    static void handOver(int id, String text) {
+        JSObject data = new JSObject();
+        data.put("id", id);
+        data.put("text", text);
+        data.put("at", System.currentTimeMillis());
+        handedOver = data;
+        AuraWakePlugin p = instance;
+        if (p != null && p.getBridge() != null) p.notifyListeners("wakeCommand", data, true);
+    }
+
+    static void handOverDone() {
+        handedOver = null;
     }
 
     /**
@@ -45,6 +69,7 @@ public class AuraWakePlugin extends Plugin {
         JSObject data = new JSObject();
         data.put("id", id);
         data.put("text", text);
+        data.put("at", System.currentTimeMillis());   // a command that reaches a sleeping web view late is dropped there
         p.notifyListeners("wakeCommand", data, false);
         return true;
     }
@@ -52,6 +77,7 @@ public class AuraWakePlugin extends Plugin {
     /** The web app's answer to a wakeCommand: shown in the overlay and spoken by the service. */
     @PluginMethod
     public void reply(PluginCall call) {
+        handOverDone();
         WakeWordService s = WakeWordService.instance;
         if (s != null) {
             s.onReply(call.getInt("id", -1), call.getString("say", ""),
@@ -102,6 +128,7 @@ public class AuraWakePlugin extends Plugin {
     }
 
     private void begin(PluginCall call) {
+        WakeWordService.saveSetting(getContext(), true);
         try {
             ContextCompat.startForegroundService(getContext(), new Intent(getContext(), WakeWordService.class));
             call.resolve(status());
@@ -112,6 +139,7 @@ public class AuraWakePlugin extends Plugin {
 
     @PluginMethod
     public void stop(PluginCall call) {
+        WakeWordService.saveSetting(getContext(), false);   // first: anything that fires after this sees "off"
         getContext().stopService(new Intent(getContext(), WakeWordService.class));
         appHolding = false;
         call.resolve();
@@ -155,6 +183,8 @@ public class AuraWakePlugin extends Plugin {
     private JSObject status() {
         JSObject o = new JSObject();
         o.put("running", WakeWordService.instance != null);
+        Boolean saved = WakeWordService.savedSetting(getContext());
+        if (saved != null) o.put("enabled", saved.booleanValue());
         o.put("state", WakeWordService.state);
         o.put("error", WakeWordService.error);
         // how the assistant panel can be drawn over other apps: "accessibility", "overlay", or null (voice only)

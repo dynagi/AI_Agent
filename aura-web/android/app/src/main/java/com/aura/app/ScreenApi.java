@@ -34,6 +34,15 @@ final class ScreenApi {
         void onResult(JSONObject json, String error);
     }
 
+    /** One question to AURA's chat brain (the same one the app uses); the reply is {"say": ..., "do": [...]}. */
+    static void converse(String message, Callback cb) {
+        try {
+            post("/chat/converse", new JSONObject().put("message", message), cb);
+        } catch (JSONException e) {
+            cb.onResult(null, "bad_request");
+        }
+    }
+
     static void step(JSONObject body, Callback cb) {
         post("/screen/step", body, cb);
     }

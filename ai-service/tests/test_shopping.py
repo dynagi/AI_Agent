@@ -19,6 +19,11 @@ from app.services.llm_service import LLMServiceError
 from app.services.shopping_history import shopping_history
 from app.shopping.session import sessions
 
+def _days_ago(n: int) -> str:
+    """A timestamp n days before now: for "history was read recently", which must stay recent on any test day."""
+    return (pd.Timestamp.now() - pd.Timedelta(days=n)).isoformat()
+
+
 DEMO = "USER_000001"  # bachelor, buys mostly on Swiggy Instamart
 AS_OF = "2026-10-01T09:00:00"
 client = TestClient(app)
@@ -500,7 +505,7 @@ def test_command_relates_to_history(monkeypatch, memory_store):
          "source": "store_history"}
         for d in (5, 15, 25) for n, q in (("Country Delight Ghar Jaisa Dahi Cup 400 g", 1),
                                           ("Amul Taaza Toned Fresh Milk 500 ml", 2))]
-    memory_store[REAL].append({"timestamp": "2026-10-01T10:00:00", "action": "history_sync", "name": "order history",
+    memory_store[REAL].append({"timestamp": _days_ago(1), "action": "history_sync", "name": "order history",
                                "app": "Zepto", "source": "store_history"})
     seen = {}
 
@@ -739,7 +744,7 @@ def _milk_history(store, zepto_days=(2, 4, 6, 8, 10, 12, 14, 16), blinkit_days=(
     store[REAL] += [{"timestamp": f"2026-09-{d:02d}T09:00:00", "action": "order", "name": "Amul Taaza Toned Milk 1 L",
                      "qty": 1, "price": price, "app": app, "source": "store_history"} for app, d, price in rows]
     for app in ("Zepto", "Blinkit"):
-        store[REAL].append({"timestamp": "2026-10-03T08:00:00", "action": "history_sync", "app": app,
+        store[REAL].append({"timestamp": _days_ago(1), "action": "history_sync", "app": app,
                             "name": "order history", "source": "store_history"})
 
 
@@ -904,3 +909,17 @@ def test_store_from_history_is_not_treated_as_named(monkeypatch, memory_store):
     assert sa._store_in_message("order milk from zapdo", "Zepto") == "Zepto"
     assert sa._store_in_message("order rice from lulu", "Lulu Hypermarket") == "Lulu Hypermarket"
     assert sa._store_in_message("order milk", "Zepto") is None
+
+
+def test_history_reading_gives_up_when_stuck_so_the_order_goes_ahead():
+    from app.services import shopping_history_reader as hr
+    tap = sb.StepAction(action="click", elementId="n56", targetText="open: ")
+    same_tap_twice = [sb.StepRecord(action="click", target="open: "), sb.StepRecord(action="click", target="open: ")]
+    req = sb.StepRequest(mode="app", phase="history", store="Blinkit", url="Account", step=3, history=same_tap_twice)
+    assert hr._stuck(req, tap)                                                    # third identical tap: give up
+    assert not hr._stuck(sb.StepRequest(mode="app", phase="history", store="Blinkit", url="Account", step=3,
+                                        history=same_tap_twice[:1]), tap)         # second one: still trying
+    other = sb.StepAction(action="click", elementId="n12", targetText="open: Orders")
+    assert not hr._stuck(req, other)                                              # a different tap is progress
+    assert hr._stuck(sb.StepRequest(mode="app", phase="history", store="Blinkit", url="Account", step=8, ordersRead=0), other)
+    assert not hr._stuck(sb.StepRequest(mode="app", phase="history", store="Blinkit", url="Account", step=8, ordersRead=2), other)

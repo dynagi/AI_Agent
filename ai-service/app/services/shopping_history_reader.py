@@ -95,7 +95,20 @@ async def history_step(req: sb.StepRequest) -> sb.StepAction:
                                ordersSaved=saved, ordersKnown=known, source="guard")
     if action.action == "click" and el is not None:
         action.targetText = f"open: {(el.text or el.label or '')[:60]}"
+    if _stuck(req, action):
+        # the same tap again and nothing changed: reading past orders is a bonus, never worth blocking the order
+        return await _finish_history(req, "couldn't open the orders page", saved)
     return sb.guard(action, req)
+
+
+def _stuck(req: sb.StepRequest, action: sb.StepAction) -> bool:
+    """True when this would be the third identical tap in a row, or many steps passed without reading any order."""
+    if req.ordersRead == 0 and req.step >= 8:
+        return True
+    if action.action != "click" or not action.targetText:
+        return False
+    recent = [r for r in req.history[-2:] if r.action == "click"]
+    return len(recent) == 2 and all((r.target or "") == action.targetText for r in recent)
 
 
 async def _synced_before(req: sb.StepRequest) -> bool:

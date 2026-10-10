@@ -37,7 +37,8 @@ export interface CompanionPrefs {
 export const DEFAULT_COMPANION_PREFS: CompanionPrefs = { id: 'prefs', enabled: true, quietStart: '22:00', quietEnd: '07:00', lastAsked: {} };
 
 export type Phase = 'idle' | 'speaking' | 'listening' | 'thinking';
-export const companionStore = createStore<{ phase: Phase; heard: string; said: string; error: string }>({ phase: 'idle', heard: '', said: '', error: '' });
+/** prompt: a check-in question AURA asked on its own; it waits for the user to tap the orb to answer (it never listens by itself). */
+export const companionStore = createStore<{ phase: Phase; heard: string; said: string; error: string; prompt: string }>({ phase: 'idle', heard: '', said: '', error: '', prompt: '' });
 const setState = (p: Partial<ReturnType<typeof companionStore.get>>) => companionStore.set((s) => ({ ...s, ...p }));
 
 let userName = 'there';
@@ -399,6 +400,7 @@ async function conversation(first: string, nav: Nav, listenFirst: boolean) {
 export async function talk(nav: Nav) {
   if (busy) { stopSpeakingNow(); setState({ phase: 'idle' }); return; }
   busy = true;
+  setState({ prompt: '' });
   try {
     const heard = await listenOnce(12_000);
     if (!heard) { await say(browserVoice.supported ? "I didn't catch that. Tap me and try again." : 'Speech input is not available here.'); return; }
@@ -463,7 +465,7 @@ export function dueCheckIn(now = Date.now()): { kind: Kind; question: string; da
   return null;
 }
 
-/** Speaks a check-in and listens for the answer. */
+/** Speaks a check-in. It does not listen: the question waits on screen until the user taps the mic to answer. */
 export async function runCheckIn(c: NonNullable<ReturnType<typeof dueCheckIn>>, nav: Nav) {
   if (busy) return;
   savePrefs({ lastAsked: { ...getPrefs().lastAsked, [c.kind]: new Date().toISOString() } });
@@ -474,8 +476,14 @@ export async function runCheckIn(c: NonNullable<ReturnType<typeof dueCheckIn>>, 
     question: c.question, data: c.data, until: Date.now() + 3 * 60_000,
   };
   remember('aura', c.question);
-  await conversation(c.question, nav, true);
-  if (pending && pending.question === c.question) pending = null; // unanswered: don't treat a later remark as the answer
+  // AURA speaks first, but never opens the microphone on its own: the question stays on screen and the user taps the
+  // orb to answer (within PENDING time, the answer is understood as the reply to this question)
+  await conversation(c.question, nav, false);
+  setState({ prompt: c.question });
+  window.setTimeout(() => {
+    if (companionStore.get().prompt === c.question) setState({ prompt: '' });
+    if (pending && pending.question === c.question) pending = null; // unanswered: don't treat a later remark as the answer
+  }, 3 * 60_000);
 }
 
 export const resetCompanionSession = () => { shoppingPending = false; pending = null; history.length = 0; snoozedDoses.clear(); doseAsks.clear(); };

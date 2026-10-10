@@ -70,6 +70,12 @@ export default function CompanionHost() {
   return (
     <>
       <style>{`@keyframes aura-orb{0%{box-shadow:0 0 0 0 rgba(0,209,255,.55)}70%{box-shadow:0 0 0 16px rgba(0,209,255,0)}100%{box-shadow:0 0 0 0 rgba(0,209,255,0)}}@keyframes aura-spin{to{transform:rotate(360deg)}}`}</style>
+      {!busy && st.prompt && (
+        <div role="status" aria-live="polite" onClick={() => void talk((path, opts) => navRef.current(path, opts))} style={{ position: 'fixed', right: 16, bottom: 'calc(env(safe-area-inset-bottom) + 150px)', zIndex: 60, maxWidth: 'min(320px, calc(100vw - 32px))', background: 'rgba(11,15,26,.96)', border: '1px solid var(--aura-border-mid, #1b3350)', borderRadius: 14, padding: '10px 14px', fontSize: 14, lineHeight: 1.4, color: '#fff', cursor: 'pointer' }}>
+          <span>{st.prompt}</span>
+          <div style={{ opacity: .7, fontSize: 12, marginTop: 4 }}>Tap the mic to answer</div>
+        </div>
+      )}
       {(busy && (st.said || st.heard)) && (
         <div role="status" aria-live="polite" style={{ position: 'fixed', right: 16, bottom: 'calc(env(safe-area-inset-bottom) + 150px)', zIndex: 60, maxWidth: 'min(320px, calc(100vw - 32px))', background: 'rgba(11,15,26,.96)', border: '1px solid var(--aura-border-mid, #1b3350)', borderRadius: 14, padding: '10px 14px', fontSize: 14, lineHeight: 1.4, color: '#fff' }}>
           {st.phase === 'listening' || st.phase === 'thinking' ? <span style={{ opacity: .85 }}>{st.heard || 'Listening…'}</span> : <span>{st.said}</span>}

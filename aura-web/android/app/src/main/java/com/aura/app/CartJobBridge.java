@@ -172,6 +172,7 @@ final class CartJobBridge {
     }
 
     synchronized void needUser(String message) {
+        android.util.Log.i("AuraCartJob", "needs the user: " + message);   // UI text only, nothing personal
         for (ProgressListener l : listeners()) l.onNeedUser(message);
     }
 

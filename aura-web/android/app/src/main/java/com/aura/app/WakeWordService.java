@@ -24,7 +24,6 @@ import org.vosk.android.SpeechService;
 import org.vosk.android.StorageService;
 
 import java.util.Locale;
-import java.util.regex.Pattern;
 
 /**
  * "Hey Aura": listens for the wake phrase in the background and wakes the assistant.
@@ -48,10 +47,31 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
     // The recogniser only knows these phrases; everything else becomes [unk]. The extra spellings are how the
     // model tends to hear "aura".
     private static final String GRAMMAR = "[\"hey aura\", \"hey ora\", \"hey aurora\", \"hey laura\", \"[unk]\"]";
-    private static final Pattern WAKE = Pattern.compile("\\bhey (aura|ora|aurora|laura)\\b");
     private static final long REARM_MS = 2500;
 
     static volatile WakeWordService instance;
+
+    // The user's "Hey Aura" setting, saved on the phone. The service obeys it on its own: it won't run or listen while
+    // it is off, whatever starts it (a leftover restart by Android, a late callback, a stale request from the app).
+    private static final String PREFS = "aura_wake";
+    private static final String ENABLED = "enabled";
+
+    static boolean settingOn(android.content.Context ctx) {
+        return ctx.getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(ENABLED, false);
+    }
+
+    /** null when the setting was never saved on the phone (an older build saved it only in the app). */
+    static Boolean savedSetting(android.content.Context ctx) {
+        android.content.SharedPreferences p = ctx.getSharedPreferences(PREFS, MODE_PRIVATE);
+        return p.contains(ENABLED) ? p.getBoolean(ENABLED, false) : null;
+    }
+
+    static void saveSetting(android.content.Context ctx, boolean on) {
+        ctx.getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(ENABLED, on).commit();
+    }
+
+    /** Set in onDestroy: every delayed callback (model load, re-arm after a session) checks it and does nothing. */
+    private volatile boolean destroyed;
     static volatile String state = "stopped";   // stopped | loading | listening | paused | error
     static volatile String error = "";
 
@@ -62,6 +82,11 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
     private long lastWake;
 
     private static final long REPLY_TIMEOUT_MS = 30000;
+    /** How long the app's own logic gets to answer before the service asks the server itself (see askServer). */
+    private static final long WEB_GRACE_MS = 4000;
+    /** After handing a command to the app (brought forward to wake it), how long its answer may take. */
+    private static final long HANDOFF_MS = 25000;
+    private long replyDeadline;
     private static final int MAX_TURNS = 6;     // question/answer rounds in one session
     private AssistantOverlay overlay;
     private SpeechCapture capture;
@@ -108,6 +133,7 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
             }
         });
         StorageService.unpack(this, "model-en-in", "vosk-model", loaded -> {
+            if (destroyed) { loaded.close(); return; }   // turned off while the model was loading
             model = loaded;
             listen();
         }, e -> fail("Could not load the wake-word model: " + e.getMessage()));
@@ -115,6 +141,11 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        if (!settingOn(this)) {
+            Log.i(TAG, "start refused: \"Hey Aura\" is off");
+            stopSelf();
+            return START_NOT_STICKY;
+        }
         registerDebugTrigger();
         return START_STICKY;
     }
@@ -172,9 +203,14 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
 
     /** Starts (or restarts) wake-phrase detection, unless the app is using the microphone itself. */
     private void listen() {
-        if (model == null || paused || speech != null) return;
+        if (speech != null) return;   // already listening: never a second microphone stream
+        if (!WakeGate.mayListen(settingOn(this), destroyed, model != null, paused, inSession, AuraWakePlugin.appHolding)) {
+            if (!settingOn(this) && !destroyed) state = "stopped";
+            return;
+        }
         try {
             Recognizer recognizer = new Recognizer(model, SAMPLE_RATE, GRAMMAR);
+            recognizer.setWords(true);   // per-word confidence, so ordinary speech forced onto the phrase can be told apart
             speech = new SpeechService(recognizer, SAMPLE_RATE);
             speech.startListening(this);
             state = "listening";
@@ -204,9 +240,9 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
     /** The app is done: go back to waiting for the wake phrase. */
     void resume() {
         ui.postDelayed(() -> {
-            if (inSession) return;
+            if (inSession || destroyed) return;
             paused = false;
-            listen();
+            listen();   // only if the setting is still on (see WakeGate.mayListen)
         }, 400);
     }
 
@@ -216,18 +252,19 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
         error = message;
     }
 
-    private void check(String hypothesis, String key) {
-        try {
-            String text = new JSONObject(hypothesis).optString(key, "");
-            if (text.isEmpty() || !WAKE.matcher(text).find()) return;
-            long now = System.currentTimeMillis();
-            if (now - lastWake < REARM_MS) return;
-            lastWake = now;
-            Log.i(TAG, "wake phrase heard: " + text);
-            onWake();
-        } catch (Exception ignored) {
-            // not JSON we understand: nothing was recognised
+    /** A final recogniser result: a session starts only for the wake phrase said clearly on its own (WakeGate). */
+    private void check(String hypothesis) {
+        // debug builds: what the wake recogniser heard (it only knows the wake phrases, so this is never a transcript)
+        if ((getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+                && hypothesis != null && !hypothesis.contains("\"text\" : \"\"")) {
+            Log.d(TAG, "wake candidate: " + hypothesis.replaceAll("\\s+", " "));
         }
+        if (destroyed || speech == null || !WakeGate.isWakePhrase(hypothesis, true)) return;
+        long now = System.currentTimeMillis();
+        if (now - lastWake < REARM_MS) return;
+        lastWake = now;
+        Log.i(TAG, "wake phrase heard");
+        onWake();
     }
 
     // ------------------------------------------------------------------ the assistant session
@@ -235,7 +272,7 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
     // Nothing is launched: the app the user is in stays on screen and keeps the focus.
 
     private void onWake() {
-        if (inSession) return;
+        if (inSession || destroyed || !settingOn(this)) return;
         inSession = true;
         paused = true;          // free the microphone for the command recogniser
         releaseMic();
@@ -330,17 +367,62 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
             answer("Open AURA once so I can help. Then call me again.", false, true);
             return;
         }
-        ui.postDelayed(() -> {
-            if (inSession && requestId == id && !answered) {
+        // Android puts the app's web view to sleep in the background (more so with the screen off), so its answer can
+        // be minutes late. If it hasn't answered shortly, the service asks the server itself.
+        final String asked = text;
+        ui.postDelayed(() -> { if (inSession && requestId == id && !answered) askServer(id, asked); }, WEB_GRACE_MS);
+        replyDeadline = android.os.SystemClock.uptimeMillis() + REPLY_TIMEOUT_MS;
+        ui.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (!inSession || requestId != id || answered) return;
+                long left = replyDeadline - android.os.SystemClock.uptimeMillis();
+                if (left > 0) { ui.postDelayed(this, left); return; }   // extended by a hand-over to the app
                 answer("I didn't get an answer in time. AURA's server may be offline.", false, false);
             }
         }, REPLY_TIMEOUT_MS);
     }
 
+    /**
+     * Sends the command straight to AURA's server chat and speaks its reply. Used when the app's web view is asleep.
+     * It answers questions and conversation; things that live in the app (opening a screen, a shopping cart) are left
+     * out, and the reply says nothing it didn't do. Needs the session the app last handed over (ScreenApi).
+     */
+    private void askServer(int id, String text) {
+        if (!ScreenApi.ready()) return;   // no session yet: the app's answer (or the time-out) will come
+        Log.i(TAG, "web view asleep: asking the server directly");
+        ScreenApi.converse(text, (json, error) -> {
+            if (!inSession || requestId != id || answered || destroyed) return;
+            org.json.JSONArray actions = json == null ? null : json.optJSONArray("do");
+            if (error == null && actions != null && actions.length() > 0) {
+                // The answer needs the app (an order, a screen, logging water / a meal / a medicine). Saying it here
+                // would claim something that isn't done, so the app is brought forward instead: that wakes its web
+                // view, which then receives this same command and handles it the usual way (questions included).
+                Log.i(TAG, "command needs the app: opening AURA");
+                overlay.setStatus("Opening AURA…", false);
+                replyDeadline = android.os.SystemClock.uptimeMillis() + HANDOFF_MS;
+                openMainApp();
+                AuraWakePlugin.handOver(id, text);
+                return;
+            }
+            if (error == null && json != null && !json.optString("say", "").trim().isEmpty()) {
+                String say = json.optString("say").trim();
+                answer(say, say.endsWith("?"), false, false);
+            } else if ("not_signed_in".equals(error)) {
+                answer("Please open AURA once so I can sign you in again, then ask me.", false, false);
+            } else if ("unavailable".equals(error)) {
+                // the server answered but its AI couldn't (e.g. the AI account is out of credit)
+                answer("AURA's AI isn't available right now, so I can't answer that. Calls, music and opening apps still work.", false, false);
+            } else {
+                answer("AURA's server isn't answering. It may be waking up, so ask me again in a minute.", false, false);
+            }
+        });
+    }
+
     /** The app's reply to the command (AuraWakePlugin.reply). */
     void onReply(int id, String say, boolean expectAnswer, boolean openApp) {
         ui.post(() -> {
-            if (!inSession || id != requestId) return;
+            if (!inSession || id != requestId || answered) return;   // already answered (e.g. by the server directly)
             webAsked = expectAnswer;
             answer(say, expectAnswer, openApp, false);   // the web app's replies can be personal: not logged
         });
@@ -387,6 +469,7 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
 
     /** Closes the overlay and goes back to waiting for the wake phrase. Also the ✕ button. */
     private void endSession(long delayMs) {
+        AuraWakePlugin.handOverDone();
         ui.postDelayed(() -> {
             inSession = false;
             answered = true;
@@ -410,21 +493,27 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
         }
     }
 
-    @Override public void onPartialResult(String hypothesis) { check(hypothesis, "partial"); }
-    @Override public void onResult(String hypothesis) { check(hypothesis, "text"); }
-    @Override public void onFinalResult(String hypothesis) { check(hypothesis, "text"); }
+    // partial results are guesses that change as more audio arrives: they never start a session
+    @Override public void onPartialResult(String hypothesis) { }
+    @Override public void onResult(String hypothesis) { check(hypothesis); }
+    @Override public void onFinalResult(String hypothesis) { check(hypothesis); }
     @Override public void onError(Exception e) { fail("Wake-word listening stopped: " + e.getMessage()); releaseMic(); }
     @Override public void onTimeout() { }
 
     @Override
     public void onDestroy() {
+        destroyed = true;
+        inSession = false;
+        afterSpeech = null;
+        ui.removeCallbacksAndMessages(null);   // no delayed re-arm, session end or reply may run after this
         if (debugTrigger != null) unregisterReceiver(debugTrigger);
         if (capture != null) capture.cancel();
         if (overlay != null) overlay.hide();
         if (tts != null) tts.shutdown();
         releaseMic();
         if (model != null) model.close();
-        instance = null;
+        model = null;
+        if (instance == this) instance = null;
         state = "stopped";
         super.onDestroy();
     }

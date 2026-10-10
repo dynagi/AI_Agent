@@ -2,6 +2,8 @@ import { registerPlugin, type PluginListenerHandle } from '@capacitor/core';
 
 export interface WakeStatus {
   running: boolean;
+  /** The "Hey Aura" setting as saved on the phone (survives restarts; the service refuses to listen when it is off). */
+  enabled?: boolean;
   /** stopped | loading | listening | paused | error */
   state: string;
   error: string;
@@ -10,7 +12,7 @@ export interface WakeStatus {
 }
 
 /** What the user said after the wake phrase; answer it with reply({id, ...}). */
-export interface WakeCommand { id: number; text: string }
+export interface WakeCommand { id: number; text: string; /** when it was heard (ms since epoch) */ at?: number }
 
 export interface AuraWakePlugin {
   /** Asks for the microphone (and notification) permission, then starts the background "Hey Aura" listener. */

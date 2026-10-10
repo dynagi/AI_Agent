@@ -23,6 +23,13 @@ export const wakeStore = createStore<{ enabled: boolean; state: string; error: s
 /** The answer to a spoken command. expectAnswer: AURA asked something, keep listening. openApp: the answer is in the app. */
 export interface WakeAnswer { say: string; expectAnswer?: boolean; openApp?: boolean }
 
+/** A spoken command older than this is not acted on (see initWake). Long enough for the service to bring the app
+ *  forward for a command that needs it (it asks the server first, which can take a few seconds). */
+const STALE_MS = 40_000;
+
+/** Ids of commands already answered in this run of the app. */
+const handled = new Set<number>();
+
 let holds = 0;
 let releaseTimer: number | undefined;
 
@@ -69,7 +76,12 @@ export async function setWakeEnabled(on: boolean): Promise<void> {
  */
 export function initWake(answer: (text: string) => Promise<WakeAnswer>): () => void {
   if (!isNative) return () => {};
-  const handle = AuraWake.addListener('wakeCommand', ({ id, text }) => {
+  const handle = AuraWake.addListener('wakeCommand', ({ id, text, at }) => {
+    // Android can hold this web view asleep in the background; a command arriving long after it was spoken has
+    // already been answered by the service (or timed out), so it must not be acted on now
+    if (typeof at === 'number' && Date.now() - at > STALE_MS) return;
+    if (handled.has(id)) return;   // the same command handed over again after the app was brought forward
+    handled.add(id);
     void answer(text)
       .catch((e): WakeAnswer => ({
         say: isOffline(e)
@@ -79,12 +91,33 @@ export function initWake(answer: (text: string) => Promise<WakeAnswer>): () => v
       .then((a) => AuraWake.reply({ id, ...a }))
       .catch(() => undefined);
   });
-  if (wakeStore.get().enabled) void setWakeEnabled(true);
+  void syncWithPhone();
   // the native service starts waking the server the moment it hears "Hey Aura", before the command is spoken
   void AuraWake.configure({ apiUrl: API_URL }).catch(() => undefined);
   wakeServer();
   return () => { void handle.then((h) => h.remove()); };
 }
+
+/**
+ * At start, make the listener match the setting. The phone's saved setting wins (it is what the background service
+ * itself obeys); the copy in this web view is only a fallback for older builds. A service left running while the
+ * setting is off is stopped; one that should run but isn't is started. Safe to call more than once.
+ */
+export async function syncWithPhone(): Promise<void> {
+  if (!isNative) return;
+  let s: WakeStatusLike | null = null;
+  try { s = await AuraWake.status(); } catch { s = null; }
+  const on = typeof s?.enabled === 'boolean' ? s.enabled : stored();
+  if (!on) {
+    if (s?.running || wakeStore.get().enabled) await setWakeEnabled(false);
+    else wakeStore.set((w) => ({ ...w, enabled: false, state: 'stopped' }));
+    return;
+  }
+  if (!s?.running) { await setWakeEnabled(true); return; }
+  try { localStorage.setItem(KEY, '1'); } catch { /* private mode */ }
+  wakeStore.set({ enabled: true, state: s.state, error: s.error, surface: s.surface });
+}
+type WakeStatusLike = Awaited<ReturnType<typeof AuraWake.status>>;
 
 /** "Display over other apps", for the assistant panel when the accessibility service is off. */
 export const requestOverlayPermission = () => { if (isNative) void AuraWake.requestOverlayPermission().catch(() => undefined); };
@@ -93,6 +126,6 @@ export async function refreshWakeStatus(): Promise<void> {
   if (!isNative) return;
   try {
     const s = await AuraWake.status();
-    wakeStore.set((w) => ({ ...w, state: s.state, error: s.error, surface: s.surface }));
+    wakeStore.set((w) => ({ ...w, enabled: typeof s.enabled === 'boolean' ? s.enabled : w.enabled, state: s.state, error: s.error, surface: s.surface }));
   } catch { /* plugin unavailable */ }
 }
