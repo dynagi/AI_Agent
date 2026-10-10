@@ -2,6 +2,8 @@
 and can ask the app to do a few well-defined things. The app executes the actions; nothing here touches the phone."""
 from __future__ import annotations
 
+import re
+
 from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException
@@ -99,4 +101,25 @@ async def converse(req: ConverseRequest) -> ConverseResponse:
         if a["type"] == "navigate" and args.get("path") not in NAV_PATHS:
             continue
         actions.append(ConverseAction(type=a["type"], args=args))
-    return ConverseResponse(say=say[:600], do=actions)
+    return ConverseResponse(say=honest(say, actions)[:600], do=actions)
+
+
+# "I've added it to your cart", "your order is placed", "message sent": things only an action can make true
+_CLAIM = re.compile(
+    r"\b(?:i(?:'ve| have)?|i just|it(?:'s| is| has been)?|your \w+(?: \w+)? (?:is|has been|are|was))\s+(?:already\s+|now\s+|just\s+)?"
+    r"(?:added|ordered|placed|purchased|bought|booked|paid|sent|messaged|called|cancelled|canceled|scheduled|reserved)\b",
+    re.I)
+# actions that really do something in the app, by the kind of claim they back up
+_DOES = {"order", "log_water", "log_meal", "took_medicine", "set_mood", "open_app", "navigate"}
+
+
+def honest(say: str, actions: list[ConverseAction]) -> str:
+    """The model must not say it did something it has no way of doing in this reply. When its sentence claims a
+    completed action (added to a cart, ordered, sent, paid, called...) and no action that could do it is attached,
+    the claim is replaced: this assistant never reports something that didn't happen."""
+    if not _CLAIM.search(say):
+        return say
+    if any(a.type in _DOES for a in actions):
+        return say
+    return ("I haven't actually done that. Tell me exactly what you want, for example "
+            "\"order pizza from Zomato\", and I'll start on it.")

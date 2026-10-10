@@ -55,6 +55,17 @@ public class WakeGateTest {
         assertEquals(null, WakeGate.micBlockedReason(false, false, false));                 // nothing in the way
     }
 
+    @Test
+    public void duringACallOnlyAClearHangUpEndsIt() {
+        assertTrue(WakeGate.isEndCallPhrase(result("hang up", 0.95, 0.9), true));
+        assertTrue(WakeGate.isEndCallPhrase(result("end the call", 0.9, 0.9, 0.85), true));
+        assertTrue(WakeGate.isEndCallPhrase(result("disconnect", 0.9), true));
+        assertFalse(WakeGate.isEndCallPhrase(result("hang up", 0.95, 0.5), true));          // not clear enough
+        assertFalse(WakeGate.isEndCallPhrase(result("hang up", 0.95, 0.95), false));        // a partial guess
+        assertFalse(WakeGate.isEndCallPhrase(result("[unk] hang up", 0.9, 0.9, 0.9), true)); // inside other speech
+        assertFalse(WakeGate.isEndCallPhrase(result("[unk]", 0.99), true));                 // the conversation itself
+    }
+
     // ------------------------------------------------------------------ what counts as "Hey Aura"
 
     @Test

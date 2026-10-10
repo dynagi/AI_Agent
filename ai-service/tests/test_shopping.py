@@ -956,3 +956,68 @@ def test_restaurant_food_goes_to_food_delivery_apps_not_grocery_stores(memory_st
     a, d = ask("order pizza base and burger buns")                                   # packaged: grocery stores
     assert "Blinkit" in a["say"] and "Zomato" not in a["say"]
     sa.sessions.clear(REAL)
+
+
+def test_chat_never_claims_an_action_it_did_not_take():
+    from app.routers.companion import ConverseAction, honest
+    lie = "Perfect, I've added pizza to your Zomato cart. You can review and pay whenever you're ready."
+    assert "haven't actually done that" in honest(lie, [])
+    assert "haven't actually done that" in honest("Your order has been placed!", [])
+    assert "haven't actually done that" in honest("I just sent the message to Rahul.", [])
+    # backed by a real action, or not a claim at all: left alone
+    assert honest("I've added that to your order.", [ConverseAction(type="order", args={"text": "order milk"})]).startswith("I've added")
+    assert honest("The capital of Japan is Tokyo.", []) == "The capital of Japan is Tokyo."
+    assert honest("I can add pizza to your Zomato cart. Shall I?", []) == "I can add pizza to your Zomato cart. Shall I?"
+    assert honest("Have you ordered lunch yet?", []) == "Have you ordered lunch yet?"
+
+
+def test_cart_stops_with_the_real_reason_when_the_ai_account_is_unavailable(monkeypatch):
+    from app.services.llm_service import LLMServiceError
+
+    async def no_credit(*a, **k):
+        raise LLMServiceError('OpenRouter request failed (402): {"error":{"message":"This request requires more credits"}}')
+    monkeypatch.setattr(sb.llm_service, "chat_json", no_credit)
+    req = sb.StepRequest(mode="app", phase="cart", store="Zomato", url="Search", items=[sb.CartItem(name="pizza")])
+    a = asyncio.run(sb._ask_llm(req, "system"))
+    assert a.action == "done" and "AI isn't available" in a.message and "Nothing was added" in a.message
+    assert sb.ai_refused(LLMServiceError("OpenRouter request failed (402): more credits"))
+    assert not sb.ai_refused(LLMServiceError("OpenRouter request timed out"))          # a glitch: keep trying
+
+
+def test_free_stand_in_answers_when_the_main_ai_account_is_out_of_credit(monkeypatch):
+    from app.services import llm_service as ls
+    calls = []
+
+    class Main:
+        model = "main-model"
+
+        async def chat(self, messages, **kw):
+            calls.append("main")
+            raise ls.LLMServiceError('OpenRouter request failed (402): {"error":{"message":"requires more credits"}}')
+
+    class Spare:
+        async def chat(self, messages, **kw):
+            calls.append("spare")
+            return '{"say": "hello"}'
+    monkeypatch.setattr(ls.settings, "llm_provider", "openrouter")
+    monkeypatch.setattr(ls.settings, "nvidia_api_key", "key")
+    monkeypatch.setattr(ls, "_primary_refused_until", 0.0)
+    monkeypatch.setattr(ls, "NvidiaProvider", Spare)
+    svc = ls.LLMService(Main())
+    assert asyncio.run(svc.chat_json([{"role": "user", "content": "hi"}])) == {"say": "hello"}
+    assert calls == ["main", "spare"]
+    assert asyncio.run(svc.chat_json([{"role": "user", "content": "hi"}])) == {"say": "hello"}
+    assert calls == ["main", "spare", "spare"]                 # the closed door isn't knocked on again for a while
+
+    # a glitch (not an account problem) is still an error: the stand-in is not for hiding outages
+    class Flaky(Main):
+        async def chat(self, messages, **kw):
+            raise ls.LLMServiceError("OpenRouter request timed out")
+    monkeypatch.setattr(ls, "_primary_refused_until", 0.0)
+    with pytest.raises(ls.LLMServiceError):
+        asyncio.run(ls.LLMService(Flaky()).chat([{"role": "user", "content": "hi"}]))
+
+    # no spare key configured: the account error is reported as it is
+    monkeypatch.setattr(ls.settings, "nvidia_api_key", "")
+    with pytest.raises(ls.LLMServiceError):
+        asyncio.run(ls.LLMService(Main()).chat([{"role": "user", "content": "hi"}]))

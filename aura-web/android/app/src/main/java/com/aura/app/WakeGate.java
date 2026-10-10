@@ -54,6 +54,35 @@ final class WakeGate {
         return null;
     }
 
+    /** What the wake engine is allowed to recognise during a call (it only ever knows these phrases). */
+    static final String CALL_GRAMMAR =
+            "[\"hang up\", \"end the call\", \"end call\", \"cut the call\", \"cut call\", \"disconnect\", \"[unk]\"]";
+    private static final Set<String> END_CALL = new HashSet<>(Arrays.asList(
+            "hang up", "end the call", "end call", "cut the call", "cut call", "disconnect"));
+    /** Ending a call by mistake is worse than not hearing "hang up": every word must be clear. */
+    static final double MIN_END_CALL = 0.75;
+
+    /**
+     * During a call Android gives full speech recognition only silence, but the wake engine still hears. Whether its
+     * final result is a clear request to end the call (the whole utterance, every word confident).
+     */
+    static boolean isEndCallPhrase(String json, boolean isFinal) {
+        if (!isFinal || json == null) return false;
+        try {
+            JSONObject o = new JSONObject(json);
+            String text = o.optString("text", "").toLowerCase(Locale.ROOT).trim().replaceAll("\\s+", " ");
+            if (!END_CALL.contains(text)) return false;
+            JSONArray words = o.optJSONArray("result");
+            if (words == null || words.length() == 0) return false;
+            for (int i = 0; i < words.length(); i++) {
+                if (words.getJSONObject(i).optDouble("conf", 0) < MIN_END_CALL) return false;
+            }
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     /**
      * Whether a recogniser result is the wake phrase. `json` is the recogniser's result ({"text": ..., "result":
      * [{"word", "conf"}...]}); `isFinal` is false for partial results, which never count.

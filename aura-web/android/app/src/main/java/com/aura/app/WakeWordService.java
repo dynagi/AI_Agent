@@ -351,6 +351,7 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
 
     private void onWake() {
         if (inSession || destroyed || !settingOn(this)) return;
+        if (inCall()) { callSession(); return; }
         inSession = true;
         paused = true;          // free the microphone for the command recogniser
         releaseMic();
@@ -360,6 +361,73 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
         boolean shown = overlay.show("Listening…");   // false = no overlay permission: the session still works by voice
         Log.i(TAG, "session started, overlay " + (shown ? "shown (" + AssistantOverlay.surface(this) + ")" : "unavailable: voice only"));
         listenForCommand();
+    }
+
+    // ------------------------------------------------------------------ "Hey Aura" during a call
+    // During a phone or internet call Android feeds full speech recognition silence, so a normal command can't be
+    // heard. The wake engine itself still hears, so it listens for a handful of call phrases ("hang up"). AURA says
+    // nothing aloud here: the other person would hear it. Everything is shown in the panel only.
+
+    private static final long CALL_LISTEN_MS = 7000;
+    private SpeechService callSpeech;
+
+    private boolean inCall() {
+        if (audioManager == null) return false;
+        int mode = audioManager.getMode();
+        return mode == android.media.AudioManager.MODE_IN_CALL || mode == android.media.AudioManager.MODE_IN_COMMUNICATION;
+    }
+
+    private void callSession() {
+        inSession = true;
+        paused = true;
+        releaseMic();
+        state = "paused";
+        Log.i(TAG, "session started during a call: call phrases only");
+        overlay.show("On a call");
+        overlay.setStatus("On a call", true);
+        overlay.setBody("I can't hear full commands during a call. Say \"hang up\" to end it, or call me again after.", false);
+        try {
+            Recognizer recognizer = new Recognizer(model, SAMPLE_RATE, WakeGate.CALL_GRAMMAR);
+            recognizer.setWords(true);
+            callSpeech = new SpeechService(recognizer, SAMPLE_RATE);
+            callSpeech.startListening(new RecognitionListener() {
+                @Override public void onPartialResult(String hypothesis) { }
+                @Override public void onResult(String hypothesis) { heard(hypothesis); }
+                @Override public void onFinalResult(String hypothesis) { heard(hypothesis); }
+                @Override public void onError(Exception e) { showOnly("I couldn't listen during this call.", 2500); }
+                @Override public void onTimeout() { }
+
+                private void heard(String hypothesis) {
+                    if (!inSession || destroyed || callSpeech == null) return;
+                    if (!WakeGate.isEndCallPhrase(hypothesis, true)) return;
+                    stopCallSpeech();
+                    overlay.setStatus("Ending the call…", false);
+                    CallAgent.end(WakeWordService.this, result -> {
+                        if (inSession && !destroyed) showOnly(result.say, 2500);
+                    });
+                }
+            });
+        } catch (Exception e) {
+            showOnly("I couldn't listen during this call.", 2500);
+            return;
+        }
+        ui.postDelayed(() -> { if (inSession && callSpeech != null) endSession(0); }, CALL_LISTEN_MS);
+    }
+
+    private void stopCallSpeech() {
+        if (callSpeech != null) {
+            callSpeech.stop();
+            callSpeech.shutdown();
+            callSpeech = null;
+        }
+    }
+
+    /** Shows a line in the panel without speaking it, then closes. */
+    private void showOnly(String text, long closeAfterMs) {
+        stopCallSpeech();
+        overlay.setStatus("", false);
+        overlay.setBody(text, false);
+        endSession(closeAfterMs);
     }
 
     /**
@@ -553,6 +621,7 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
             answered = true;
             afterSpeech = null;
             capture.cancel();
+            stopCallSpeech();
             if (tts != null) tts.stop();
             overlay.hide();
             paused = false;
@@ -584,6 +653,7 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
         inSession = false;
         afterSpeech = null;
         ui.removeCallbacksAndMessages(null);   // no delayed re-arm, session end or reply may run after this
+        stopCallSpeech();
         if (audioManager != null && recordingWatcher != null && Build.VERSION.SDK_INT >= 24) {
             audioManager.unregisterAudioRecordingCallback(recordingWatcher);
         }

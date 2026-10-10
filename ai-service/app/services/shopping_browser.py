@@ -569,17 +569,35 @@ def _normalise_id(action: StepAction, req: StepRequest) -> None:
 async def _ask_llm(req: StepRequest, system: str) -> StepAction:
     """Fast model first (short timeout), then the main model, then the no-LLM heuristic."""
     messages = [{"role": "system", "content": system}, {"role": "user", "content": _page_text(req)}]
+    refused = 0
     for model, timeout in ((settings.cart_agent_model, settings.shopping_agent_timeout_s),
                            (None, settings.shopping_agent_timeout_s + 10)):
         try:
-            raw = await llm_service.chat_json(messages, model=model, timeout=timeout, retries=1)
+            # a step is one small JSON object: asking for more only reserves credit the reply never uses
+            raw = await llm_service.chat_json(messages, model=model, timeout=timeout, retries=1, max_tokens=STEP_MAX_TOKENS)
             fields = {k: v for k, v in (raw or {}).items() if k in StepAction.model_fields and v is not None}
             if "elementId" in fields:
                 fields["elementId"] = str(fields["elementId"])
             return StepAction(**fields)
         except (LLMServiceError, ValueError, TypeError) as exc:
             logger.warning("cart_agent_llm_failed", model=model or "default", error=str(exc)[:200])
+            refused += ai_refused(exc)
+    if refused == 2:
+        # the AI account can't be used (no credit, bad key): the screen can't be read, so stop and say why. Reporting
+        # "couldn't find it" here would blame the store for something that is ours.
+        return StepAction(action="done", source="guard", reason="AI unavailable",
+                          message="I couldn't fill the cart: AURA's AI isn't available right now (its credit may have "
+                                  "run out), so I can't read the store's screen. Nothing was added.")
     return heuristic_step(req)
+
+
+STEP_MAX_TOKENS = 400
+
+
+def ai_refused(exc: Exception) -> bool:
+    """The AI provider turned the request away for an account reason (out of credit, key rejected), not a glitch."""
+    from app.services.llm_service import account_refused
+    return account_refused(exc)
 
 
 async def next_step(req: StepRequest) -> StepAction:
