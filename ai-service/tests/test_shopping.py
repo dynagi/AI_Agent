@@ -969,6 +969,10 @@ def test_chat_never_claims_an_action_it_did_not_take():
     assert honest("The capital of Japan is Tokyo.", []) == "The capital of Japan is Tokyo."
     assert honest("I can add pizza to your Zomato cart. Shall I?", []) == "I can add pizza to your Zomato cart. Shall I?"
     assert honest("Have you ordered lunch yet?", []) == "Have you ordered lunch yet?"
+    # promises nothing can keep: there is no reminder or alarm feature
+    for promise in ("Okay, I'll remind you to call Mom at 6 PM.", "I've set a reminder for 6.", "Sure, the alarm is set."):
+        assert "can't set reminders or alarms" in honest(promise, [])
+    assert honest("Do you want a reminder for your medicine?", []).startswith("Do you want")
 
 
 def test_cart_stops_with_the_real_reason_when_the_ai_account_is_unavailable(monkeypatch):
@@ -1021,3 +1025,36 @@ def test_free_stand_in_answers_when_the_main_ai_account_is_out_of_credit(monkeyp
     monkeypatch.setattr(ls.settings, "nvidia_api_key", "")
     with pytest.raises(ls.LLMServiceError):
         asyncio.run(ls.LLMService(Main()).chat([{"role": "user", "content": "hi"}]))
+
+
+def test_free_nvidia_models_get_room_to_answer_and_never_speak_their_notes(monkeypatch):
+    from app.services import llm_service as ls
+    p = ls.NvidiaProvider()
+    monkeypatch.setattr(ls.settings, "nvidia_thinking", False)
+    small = {"model": "nvidia/nemotron-3-super-120b-a12b", "max_tokens": 260}
+    p._tune(small)
+    assert small["max_tokens"] >= 1500 and small["chat_template_kwargs"] == {"enable_thinking": False}
+    oss = {"model": "openai/gpt-oss-20b"}
+    p._tune(oss)
+    assert oss["max_tokens"] >= 1500 and oss["reasoning_effort"] == "low"
+    big = {"model": "openai/gpt-oss-20b", "max_tokens": 4000}
+    p._tune(big)
+    assert big["max_tokens"] == 4000                                        # a larger request is left alone
+
+    # a model that used everything on thinking returns no content: that is an error, not something to say aloud
+    class Resp:
+        status_code = 200
+        text = ""
+
+        def json(self):
+            return {"choices": [{"finish_reason": "length", "message": {"content": None, "reasoning_content": "The user wants..."}}]}
+
+    class Client:
+        def __init__(self, **kw): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def post(self, *a, **kw): return Resp()
+    monkeypatch.setattr(ls.httpx, "AsyncClient", Client)
+    monkeypatch.setattr(p, "api_key", "key")
+    with pytest.raises(ls.LLMServiceError):
+        asyncio.run(p.chat([{"role": "user", "content": "hi"}], retries=1))

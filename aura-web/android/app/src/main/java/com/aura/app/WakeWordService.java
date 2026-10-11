@@ -422,6 +422,20 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
         }
     }
 
+    /**
+     * Says one sentence aloud outside an assistant session (the cart assistant reporting that it can't go on).
+     * Silent during a call or while a session is speaking or listening.
+     */
+    static void notice(String text) {
+        WakeWordService s = instance;
+        if (s == null) return;
+        s.ui.post(() -> {
+            if (s.destroyed || s.inSession || s.inCall() || s.tts == null || !s.ttsReady) return;
+            s.tts.setLanguage(new Locale("en", "IN"));
+            s.tts.speak(text, TextToSpeech.QUEUE_FLUSH, new Bundle(), "aura-notice-" + (++s.utterance));
+        });
+    }
+
     /** Shows a line in the panel without speaking it, then closes. */
     private void showOnly(String text, long closeAfterMs) {
         stopCallSpeech();

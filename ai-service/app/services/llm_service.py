@@ -64,6 +64,7 @@ class _OpenAICompatibleProvider(LLMProvider):
             payload["max_tokens"] = max_tokens
         if json_mode and self.supports_json_mode:
             payload["response_format"] = {"type": "json_object"}
+        self._tune(payload)
 
         # Hosted models occasionally return a transient 5xx or drop the connection; retry those a couple of times.
         resp: httpx.Response | None = None
@@ -95,9 +96,18 @@ class _OpenAICompatibleProvider(LLMProvider):
 
         data = resp.json()
         try:
-            return data["choices"][0]["message"]["content"]
+            choice = data["choices"][0]
+            content = choice["message"]["content"]
         except (KeyError, IndexError) as exc:
             raise LLMServiceError(f"Unexpected {self.label} response shape: {data}") from exc
+        if not content or not str(content).strip():
+            # a "thinking" model that used its whole allowance on reasoning and never got to the answer. Its notes
+            # are not an answer: fail so the next model is tried, rather than speak them.
+            raise LLMServiceError(f"{self.label} returned no answer (finish: {choice.get('finish_reason')}).")
+        return content
+
+    def _tune(self, payload: dict[str, Any]) -> None:
+        """Provider-specific adjustments to a request. Nothing by default."""
 
 
 class GrokProvider(_OpenAICompatibleProvider):
@@ -121,6 +131,21 @@ class NvidiaProvider(_OpenAICompatibleProvider):
         self.api_key = settings.nvidia_api_key
         self.base_url = settings.nvidia_base_url
         self.model = settings.nvidia_model
+
+    # NVIDIA's free models mostly "think" before answering, and the thinking counts against max_tokens. AURA's limits
+    # were sized for a paid model (short replies, to save money); with them these models spend everything on
+    # reasoning and return nothing. Here tokens cost nothing, so: always leave room, and keep the thinking short
+    # where the model allows it (AURA's jobs are quick ones: a spoken reply, one tap on a screen).
+    MIN_TOKENS = 1500
+
+    def _tune(self, payload: dict[str, Any]) -> None:
+        payload["max_tokens"] = max(int(payload.get("max_tokens") or 0), self.MIN_TOKENS)
+        model = str(payload.get("model") or "").lower()
+        if not settings.nvidia_thinking:
+            if "gpt-oss" in model:
+                payload["reasoning_effort"] = "low"
+            elif "nemotron-3" in model or "nemotron-nano" in model:
+                payload["chat_template_kwargs"] = {"enable_thinking": False}
 
 
 class OpenRouterProvider(_OpenAICompatibleProvider):

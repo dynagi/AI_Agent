@@ -40,8 +40,8 @@ services:
       - key: ENVIRONMENT
         value: production
       - key: LLM_PROVIDER
-        value: openrouter      # "openrouter" | "nvidia" | "grok"
-      - key: OPENROUTER_API_KEY
+        value: nvidia          # free. "nvidia" | "openrouter" | "grok" (the model and its backups are set in code)
+      - key: NVIDIA_API_KEY
         sync: false
       - key: SERPAPI_API_KEY
         sync: false

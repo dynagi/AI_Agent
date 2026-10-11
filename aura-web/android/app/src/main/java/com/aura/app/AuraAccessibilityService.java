@@ -575,7 +575,12 @@ public class AuraAccessibilityService extends AccessibilityService implements Ca
         CartJobBridge job = CartJobBridge.getInstance();
         List<AccessibilityNodeInfo> roots = appRoots(job.appPackage);
         if (roots.isEmpty()) {
-            if (++offAppChecks > MAX_OFF_APP_CHECKS) {
+            if (AppActions.locked(this)) {
+                // the store's app can't come to the front behind the lock screen: say so now, not after a long wait
+                String why = "Your phone is locked. Unlock it, then tap Continue and I'll fill your " + job.store + " cart.";
+                WakeWordService.notice("Your phone is locked. Unlock it and I'll fill your " + job.store + " cart.");
+                job.needUser(why);
+            } else if (++offAppChecks > MAX_OFF_APP_CHECKS) {
                 job.needUser("Bring the " + job.store + " app back to the front, then tap Continue.");
             } else {
                 scheduleStep(1500);

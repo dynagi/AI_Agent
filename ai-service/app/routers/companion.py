@@ -109,6 +109,10 @@ _CLAIM = re.compile(
     r"\b(?:i(?:'ve| have)?|i just|it(?:'s| is| has been)?|your \w+(?: \w+)? (?:is|has been|are|was))\s+(?:already\s+|now\s+|just\s+)?"
     r"(?:added|ordered|placed|purchased|bought|booked|paid|sent|messaged|called|cancelled|canceled|scheduled|reserved)\b",
     re.I)
+# "I'll remind you at 6", "I've set an alarm": promises nothing here can keep
+_PROMISE = re.compile(
+    r"\b(?:i(?:'ll| will| can)? (?:remind you|set (?:a |an |the |that )?(?:reminder|alarm|timer)|wake you|alert you|notify you)"
+    r"|(?:reminder|alarm|timer) (?:is |has been )?set\b|i(?:'ve| have) set (?:a |an |the |that )?(?:reminder|alarm|timer))", re.I)
 # actions that really do something in the app, by the kind of claim they back up
 _DOES = {"order", "log_water", "log_meal", "took_medicine", "set_mood", "open_app", "navigate"}
 
@@ -117,6 +121,10 @@ def honest(say: str, actions: list[ConverseAction]) -> str:
     """The model must not say it did something it has no way of doing in this reply. When its sentence claims a
     completed action (added to a cart, ordered, sent, paid, called...) and no action that could do it is attached,
     the claim is replaced: this assistant never reports something that didn't happen."""
+    if _PROMISE.search(say):
+        # there is no reminder, alarm or timer behind this assistant yet: promising one would simply not happen
+        return ("I can't set reminders or alarms yet, so I won't promise that. "
+                "Your phone's clock app can do it, and I can open it for you.")
     if not _CLAIM.search(say):
         return say
     if any(a.type in _DOES for a in actions):
