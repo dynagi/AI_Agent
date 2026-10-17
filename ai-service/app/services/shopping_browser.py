@@ -773,4 +773,7 @@ def _log_step(req: StepRequest, action: StepAction, idx: int | None, t0: float) 
     logger.info("cart_agent_step", store=req.store, mode=req.mode, phase=req.phase, step=req.step,
                 item=req.items[idx].name if idx is not None else None, action=action.action,
                 element=action.elementId, target=action.targetText, source=action.source, reason=action.reason[:100],
-                orders=action.ordersSaved or None, ms=int((time.time() - t0) * 1000))
+                orders=action.ordersSaved or None, ms=int((time.time() - t0) * 1000), n_el=len(req.elements),
+                # only the store's "Add..." buttons (no other screen content): shows why an addition was or wasn't seen
+                adds=[f"{e.id}:{(e.text or e.label or '')[:24]}" for e in req.elements
+                      if re.match(r"\s*add", f"{e.text or e.label or ''}", re.I)][:5] if req.phase == "cart" else None)
