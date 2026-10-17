@@ -51,6 +51,7 @@ const STOP = new Set(['the', 'some', 'for', 'and', 'with', 'fresh', 'good', 'bes
 const NUM_WORDS: Record<string, number> = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, half: 0.5 };
 
 const PLATFORM_RE = /\b(?:(?:from|on|via|using|in|at|through|with)\s+)?(blinkit|blink\s?it|zepto|swiggy\s+instamart|instamart|swiggy|zomato)\b/i;
+const TRAVEL_RE = /\b(flights?|fly|flying|airfare|plane|air ?tickets?|train|bus tickets?|cab|taxi|hotel|holiday|trip to)\b/i;
 const VERB_RE = /^(?:(?:hey\s+)?aura[,\s]+|please\s+|pls\s+)*(?:(?:can|could|will|would)\s+you\s+)?(?:please\s+)?(order|auto[- ]?order|get me|get|buy|add|bring me|send me|i want|i need|i'd like|i would like|want|need)\s+(?:some\s+)?(.+)$/i;
 
 function normalizeSize(n: string, unit: string): string {
@@ -119,6 +120,8 @@ function parseItem(rawIn: string): ParsedItem {
 
 /** Parses "order 2 toned milk and eggs from zepto". Returns null when it isn't an order we can act on (the caller then falls back to chat/price comparison). */
 export function parseOrderRequest(input: string): OrderRequest | null {
+  // travel ("I want a flight to Delhi", "get me a cab") is not something to put in a shopping cart
+  if (TRAVEL_RE.test(input)) return null;
   const verb = input.trim().match(VERB_RE);
   if (!verb) return null;
   let body = verb[2].replace(/\b(?:for me|please|pls|right now|now|to my cart|in my cart|into my cart)\b/gi, ' ');

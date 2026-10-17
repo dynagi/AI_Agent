@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from app.services.llm_service import LLMServiceError, llm_service
+from app.travel import assistant as flight_assistant
 
 router = APIRouter(prefix="/ai", tags=["companion"])
 
@@ -28,6 +29,8 @@ class ConverseRequest(BaseModel):
     # JSON snapshot of the user's day (water, meals, medicines, mood…), built by the app.
     context: str = Field(default="", max_length=6000)
     history: list[Turn] = Field(default_factory=list, max_length=8)
+    # who is talking (set by the backend from the session): flight searches and preferences are per person
+    userId: str | None = Field(default=None, max_length=100)
     # What AURA just asked, when the message is an answer to it ("Did you take your Metformin?").
     pending: str | None = Field(default=None, max_length=300)
 
@@ -70,6 +73,11 @@ Reply with ONLY this JSON: {"say": "<what you speak>", "do": [<0-3 actions>]}"""
 
 @router.post("/converse", response_model=ConverseResponse)
 async def converse(req: ConverseRequest) -> ConverseResponse:
+    # flights have their own assistant (live search, prices per website, preferences); it answers when the message
+    # is about a flight or replies to one of its questions, and stays out of everything else
+    flight_reply = await flight_assistant.handle(req.message, req.userId or "anonymous")
+    if flight_reply is not None:
+        return ConverseResponse(say=flight_reply[:1200], do=[])
     messages: list[dict[str, str]] = [{"role": "system", "content": SYSTEM_PROMPT}]
     if req.context:
         messages.append({"role": "system", "content": f"The user's day so far (JSON): {req.context}"})

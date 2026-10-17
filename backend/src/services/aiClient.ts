@@ -38,7 +38,7 @@ export const aiClient = {
   chat: (payload: { message: string; userId: string; conversationId?: string }) =>
     callAi<{ reply: string; agentsConsulted: string[] }>('/ai/chat', payload),
 
-  converse: (payload: { message: string; context?: string; history?: { role: 'user' | 'aura'; text: string }[]; pending?: string }) =>
+  converse: (payload: { message: string; context?: string; history?: { role: 'user' | 'aura'; text: string }[]; pending?: string; userId?: string }) =>
     callAi<{ say: string; do: { type: string; args: Record<string, unknown> }[] }>('/ai/converse', payload),
 
   plan: (payload: { goal: string; userId: string }) =>

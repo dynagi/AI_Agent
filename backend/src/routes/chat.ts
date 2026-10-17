@@ -48,7 +48,7 @@ chatRouter.post('/converse', requireAuth, async (req: AuthedRequest, res, next) 
     return next(new ApiError(400, parsed.error.issues.map((i) => i.message).join(', ')));
   }
   try {
-    res.json(await aiClient.converse(parsed.data));
+    res.json(await aiClient.converse({ ...parsed.data, userId: req.userId }));
   } catch (err) {
     if (err instanceof AiServiceError) {
       return res.status(503).json({ error: 'AURA is temporarily unavailable.' });
