@@ -259,6 +259,8 @@ How to work:
   reasonably priced option). Click its "ADD"/"Add to cart" control. For qty > 1 click the "+" next to it
   (repeat = qty-1) after it was added. If a variant/size sheet or popup opens (it is listed first, on top), pick the
   size closest to the item (else the most common one) and press its ADD/confirm there; don't tap the card's ADD again.
+  A choice that is already selected (filled radio button) needs no tap: once every "Required" group has a choice,
+  press the sheet's "Add item" / "Add to cart" button. The item is NOT in the cart until that button is pressed.
 - After the item is in the cart (ADD turned into a quantity stepper, or "added" shown), the item is done.
   If it is out of stock or not sold here after one or two searches, use item_done with itemOk=false and move on.
 - Close popups/offers that block the screen (close/X/"not now"/"skip", or back). If the app needs login, OTP, a
@@ -556,6 +558,10 @@ def fast_step(req: StepRequest) -> StepAction | None:
     last = _last_tap(req)
     # 1. verify this item's last tap: its ADD button is gone (a quantity stepper took its place)
     tap = _parse_tap(last.target) if last and last.action == "click" and (last.result or "").startswith("clicked") else None
+    pending = next((t for h in reversed(req.history) if (t := _parse_tap(h.target)) and t[1] == idx
+                    and t[0] in ("add", "confirm") and (h.result or "").startswith("clicked")), None)
+    if pending and _sheet_open(req) and not (tap and tap[1] == idx and tap[0] in ("add", "confirm")):
+        tap = pending   # e.g. the LLM picked a size in the sheet: still confirm it
     if tap and tap[1] == idx and tap[0] in ("add", "confirm") and _sheet_open(req):
         product = tap[2]
         confirms = sum(1 for h in req.history if (t := _parse_tap(h.target)) and t[0] == "confirm" and t[1] == idx)
@@ -586,6 +592,9 @@ def fast_step(req: StepRequest) -> StepAction | None:
                 return None  # added, but the "+" isn't recognisable: let the LLM finish the quantity
             return StepAction(action="item_done", itemIndex=idx, itemOk=True, reason=f"{item.name} is in the cart",
                               source="fast")
+        if product and not _visible(req, product) and _settle_waits(req, idx) < MAX_SETTLE_WAITS:
+            return StepAction(action="wait", itemIndex=idx, targetText=_tap("settle", idx, product),
+                              reason="waiting for the screen after Add", source="fast")
         if product and _failed_adds(req, idx, product) >= MAX_ADD_TAPS:
             return StepAction(action="item_done", itemIndex=idx, itemOk=False,
                               reason=f"{item.name}: the store didn't add it after {MAX_ADD_TAPS} taps", source="guard")

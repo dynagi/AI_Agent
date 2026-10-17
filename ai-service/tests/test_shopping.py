@@ -1129,3 +1129,19 @@ def test_add_button_vanishing_alone_is_not_proof_the_item_was_added():
     req = sb.StepRequest(mode="app", phase="cart", store="Zomato", url="Menu", step=4, items=[sb.CartItem(name="pizza")],
                          history=[tapped_add, waited, waited], elements=loading)
     assert sb.fast_step(req) is None and not sb._added_ok(req, 0)
+
+
+
+def test_sheet_is_confirmed_even_after_the_ai_picked_a_size_in_it():
+    """Seen on the phone: after ADD the AI tapped "Regular" (already selected) over and over and never pressed
+    "Add item ₹170". Any open sheet after this item's ADD is now confirmed."""
+    E = sb.PageElement
+    product = "margherita pizza"
+    hist = [sb.StepRecord(action="click", target=f"add#0@{product}", result="clicked"),
+            sb.StepRecord(action="click", target="n12", result="clicked")]
+    sheet = [E(id="n12", tag="RadioButton", text="Regular (serves 1, 17 Cm)"),
+             E(id="n31", tag="Button", text="Add item ₹170")]
+    req = sb.StepRequest(mode="app", phase="cart", store="Zomato", url="Menu", step=4, items=[sb.CartItem(name="pizza")],
+                         history=hist, elements=sheet)
+    a = sb.fast_step(req)
+    assert a.action == "click" and a.elementId == "n31" and a.targetText == f"confirm#0@{product}"
