@@ -164,3 +164,18 @@ def test_sheet_with_nothing_to_choose_still_confirms_dish_and_price(ai):
     assert q.action == "ask" and "₹229" in q.message and q.message.endswith("Shall I add it to the cart?")
     run.history[-1].result = "yes"
     assert run.step(sheet).elementId == "n9"
+
+
+def test_a_container_around_a_whole_group_is_not_an_option():
+    """Seen on the phone (Domino's on Zomato): one clickable row wrapped the headers and options, and its text
+    became a bogus option "Crust Required • 1 option available Cheese Burst ..."."""
+    sheet = [E(id="n1", tag="ViewGroup", text="Crust Required • 1 option available Cheese Burst Size Required • 1 option "
+                                                "available Large Plus ₹2149", checked=True, checkKind="radio"),
+             E(id="n2", tag="ViewGroup", text="Crust Required • 1 option available"),
+             E(id="n3", tag="ViewGroup", text="Cheese Burst", checked=True, checkKind="radio"),
+             E(id="n4", tag="ViewGroup", text="Size Required • 1 option available"),
+             E(id="n5", tag="ViewGroup", text="Large Plus ₹2149", checked=True, checkKind="radio"),
+             E(id="n9", tag="Button", text="Add item ₹2149 ₹999")]
+    groups = fo.read_sheet(sheet)
+    assert [(g.name, [o.name for o in g.options]) for g in groups] == [("Crust", ["Cheese Burst"]), ("Size", ["Large Plus"])]
+    assert fo.question("Big Big 6in1 Cheeseburst - Veg", groups) is None      # nothing to choose: only the price check

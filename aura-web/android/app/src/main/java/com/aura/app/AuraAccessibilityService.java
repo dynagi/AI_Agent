@@ -817,8 +817,9 @@ public class AuraAccessibilityService extends AccessibilityService implements Ca
                 el.put("scrollable", n.isScrollable());
                 el.put("disabled", !n.isEnabled());
                 // option rows in a customisation sheet: the state of the radio button / checkbox inside the row
+                // (a container around several options is not an option row: it holds more than one)
                 AccessibilityNodeInfo box = n.isCheckable() ? n : checkableInside(n, 0);
-                if (box != null) {
+                if (box != null && (n.isCheckable() || countCheckable(n, 0) == 1)) {
                     el.put("checked", box.isChecked());
                     CharSequence cls = box.getClassName();
                     el.put("checkKind", cls != null && cls.toString().contains("Radio") ? "radio" : "check");
@@ -851,6 +852,17 @@ public class AuraAccessibilityService extends AccessibilityService implements Ca
             if (inner != null) return inner;
         }
         return null;
+    }
+
+    private static int countCheckable(AccessibilityNodeInfo n, int depth) {
+        if (n == null || depth > 6) return 0;
+        int count = 0;
+        for (int i = 0; i < n.getChildCount() && count < 2; i++) {
+            AccessibilityNodeInfo c = n.getChild(i);
+            if (c == null) continue;
+            count += (c.isCheckable() ? 1 : 0) + countCheckable(c, depth + 1);
+        }
+        return count;
     }
 
     private static String descendantText(AccessibilityNodeInfo n, int depth) {

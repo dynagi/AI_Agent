@@ -80,6 +80,8 @@ def read_sheet(elements: list[Any], page: int = 0) -> list[Group]:
         if not text or text.lower().startswith("unlabeled icon") or _CONFIRM.match(text):
             continue
         checked = getattr(e, "checked", None)
+        if checked is not None and _RULE.search(text):
+            continue    # a container around a whole group ("Crust Required • 1 option … Cheese Burst …"), not an option
         if checked is None:
             # a row without a checkbox: a group header if it has words and no price ("Size Required • Select any 1")
             if re.search(r"[A-Za-z]{2}", text) and not _PRICE.search(text) and len(text) <= 90:
