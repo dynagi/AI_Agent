@@ -688,6 +688,41 @@ public class AuraAccessibilityService extends AccessibilityService implements Ca
         return roots;
     }
 
+    /** Debug builds only (via the DEBUG_WAKE receiver): logs the windows and every "Add…" view the reader can reach. */
+    void debugRead(String pkg) {
+        for (android.view.accessibility.AccessibilityWindowInfo w : getWindows()) {
+            Rect r = new Rect();
+            w.getBoundsInScreen(r);
+            AccessibilityNodeInfo root = w.getRoot();
+            android.util.Log.i("AuraCartRead", "window type=" + w.getType() + " layer=" + w.getLayer() + " bounds=" + r
+                    + " pkg=" + (root != null ? root.getPackageName() : null));
+        }
+        for (AccessibilityNodeInfo root : appRoots(pkg)) debugWalk(root, 0, true);
+        try {
+            JSONArray els = snapshot(appRoots(pkg), CartJobBridge.getInstance()).getJSONArray("elements");
+            android.util.Log.i("AuraCartRead", "" + els.length() + " elements");
+            for (int i = 0; i < els.length(); i++) {
+                String t = els.getJSONObject(i).optString("text");
+                if (t.toLowerCase(java.util.Locale.ROOT).startsWith("add")) android.util.Log.i("AuraCartRead", "element " + t);
+            }
+        } catch (JSONException ignored) {
+        }
+    }
+
+    private void debugWalk(AccessibilityNodeInfo n, int depth, boolean parentsVisible) {
+        if (n == null || depth > 60) return;
+        String own = label(n);
+        if (own.toLowerCase(java.util.Locale.ROOT).startsWith("add")) {
+            Rect r = new Rect();
+            n.getBoundsInScreen(r);
+            android.util.Log.i("AuraCartRead", "node '" + clip(own, 30) + "' depth=" + depth + " visible=" + n.isVisibleToUser()
+                    + " parentsVisible=" + parentsVisible + " clickable=" + n.isClickable() + " bounds=" + r);
+        }
+        for (int i = 0; i < n.getChildCount(); i++) {
+            debugWalk(n.getChild(i), depth + 1, parentsVisible && n.isVisibleToUser());
+        }
+    }
+
     private JSONObject snapshot(List<AccessibilityNodeInfo> roots, CartJobBridge job) throws JSONException {
         nodes.clear();
         JSONArray elements = new JSONArray();

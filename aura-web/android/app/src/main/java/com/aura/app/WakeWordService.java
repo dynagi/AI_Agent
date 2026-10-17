@@ -173,6 +173,11 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
             @Override
             public void onReceive(android.content.Context context, Intent intent) {
                 String text = intent.getStringExtra("text");
+                String read = intent.getStringExtra("read");   // --es read <package>: log what the cart reader sees
+                if (read != null) {
+                    if (AuraAccessibilityService.instance != null) ui.post(() -> AuraAccessibilityService.instance.debugRead(read));
+                    return;
+                }
                 ui.post(() -> {
                     Log.i(TAG, "debug wake" + (text != null ? " with a command" : ""));
                     onWake();
