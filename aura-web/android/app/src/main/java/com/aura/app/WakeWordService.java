@@ -101,6 +101,13 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
     private int utterance;
     private android.content.BroadcastReceiver debugTrigger;
 
+    /** The answer to a question from the cart assistant; see askForCart. */
+    interface CartAnswer {
+        void on(String answer);
+    }
+
+    private CartAnswer cartAnswer;   // set while a cart question is waiting for its answer
+
     @Override
     public IBinder onBind(Intent intent) {
         return null;
@@ -441,6 +448,45 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
         });
     }
 
+    /**
+     * The cart assistant asks the user something while it fills a cart (a dish's size and add-ons, the final price):
+     * the question is spoken in the panel and one answer is heard. The answer is "(no voice)" when AURA can't talk
+     * right now (no service, a call, no speech recognition) and "(no answer)" when nothing was said; the cart assistant
+     * then lets the user choose on screen.
+     */
+    static void askForCart(String question, CartAnswer done) {
+        WakeWordService s = instance;
+        if (s == null) {
+            done.on("(no voice)");
+            return;
+        }
+        s.ui.post(() -> s.cartAsk(question, done, 0));
+    }
+
+    private void cartAsk(String question, CartAnswer done, int tries) {
+        if (destroyed || inCall() || !SpeechCapture.available(this)) {
+            done.on("(no voice)");
+            return;
+        }
+        if (inSession) {   // the panel from the order's own "yes" may still be closing
+            if (tries < 10) ui.postDelayed(() -> cartAsk(question, done, tries + 1), 700);
+            else done.on("(no voice)");
+            return;
+        }
+        inSession = true;
+        paused = true;          // free the microphone for the answer
+        releaseMic();
+        state = "paused";
+        turns = 0;
+        cartAnswer = done;
+        overlay.show("");
+        overlay.setStatus("", false);
+        overlay.setBody(question, false);
+        speak(question, () -> {
+            if (inSession && cartAnswer == done) listenForCommand();
+        });
+    }
+
     /** Shows a line in the panel without speaking it, then closes. */
     private void showOnly(String text, long closeAfterMs) {
         stopCallSpeech();
@@ -495,6 +541,21 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
     @Override
     public void onDone(String text, String error) {
         if (!inSession) return;
+        if (cartAnswer != null) {
+            // the answer to the cart assistant's question: it goes to the cart, never to the chat (and is not logged)
+            CartAnswer done = cartAnswer;
+            cartAnswer = null;
+            if (text.isEmpty()) {
+                done.on("(no answer)");
+                endSession(0);
+                return;
+            }
+            overlay.setBody(text, true);
+            overlay.setStatus("Got it", false);
+            done.on(text);
+            endSession(900);
+            return;
+        }
         if (text.isEmpty()) {
             if (error != null) answer(error, false, false);
             else endSession(0);   // nothing was said: just go away
@@ -635,6 +696,11 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
     /** Closes the overlay and goes back to waiting for the wake phrase. Also the ✕ button. */
     private void endSession(long delayMs) {
         AuraWakePlugin.handOverDone();
+        if (cartAnswer != null) {   // closed (✕) before answering the cart's question
+            CartAnswer done = cartAnswer;
+            cartAnswer = null;
+            done.on("(no answer)");
+        }
         ui.postDelayed(() -> {
             inSession = false;
             answered = true;
@@ -670,6 +736,10 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
     public void onDestroy() {
         destroyed = true;
         inSession = false;
+        if (cartAnswer != null) {
+            cartAnswer.on("(no voice)");
+            cartAnswer = null;
+        }
         afterSpeech = null;
         ui.removeCallbacksAndMessages(null);   // no delayed re-arm, session end or reply may run after this
         stopCallSpeech();

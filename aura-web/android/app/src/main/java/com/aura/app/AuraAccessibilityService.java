@@ -640,9 +640,43 @@ public class AuraAccessibilityService extends AccessibilityService implements Ca
                     job.markItem(action.optInt("itemIndex", -1), action.optBoolean("itemOk", true), reason);
                     scheduleStep(300);
                     return;
-                case "need_user":
-                    job.needUser(action.optString("message", "AURA needs you to do something in the app."));
+                case "need_user": {
+                    if (action.has("targetText")) {   // e.g. "manual#0@": the server knows the user chose on screen
+                        JSONObject rec = new JSONObject();
+                        rec.put("action", type);
+                        rec.put("target", action.optString("targetText"));
+                        rec.put("result", "waiting for the user");
+                        job.record(rec);
+                    }
+                    String why = action.optString("message", "AURA needs you to do something in the app.");
+                    WakeWordService.notice(why);
+                    job.needUser(why);
                     return;
+                }
+                case "ask": {
+                    // a question for the user (a dish's size and add-ons, its final price): spoken, and the answer
+                    // goes back to the server as this step's result. The job waits meanwhile.
+                    String question = action.optString("message", "");
+                    String target = action.optString("targetText", "ask");
+                    setStatus(question);
+                    inFlight = true;
+                    WakeWordService.askForCart(question, answer -> ui.post(() -> {
+                        inFlight = false;
+                        if (!running) return;
+                        try {
+                            JSONObject rec = new JSONObject();
+                            rec.put("action", type);
+                            rec.put("target", target);
+                            rec.put("result", answer);
+                            rec.put("url", screen);
+                            job.record(rec);
+                        } catch (JSONException ignored) {
+                        }
+                        setStatus(answer.startsWith("(") ? "No answer" : "Got it");
+                        scheduleStep(300);
+                    }));
+                    return;
+                }
                 case "done":
                     job.finish(action.optString("message", "Finished."));
                     return;
@@ -782,6 +816,13 @@ public class AuraAccessibilityService extends AccessibilityService implements Ca
                 el.put("editable", n.isEditable());
                 el.put("scrollable", n.isScrollable());
                 el.put("disabled", !n.isEnabled());
+                // option rows in a customisation sheet: the state of the radio button / checkbox inside the row
+                AccessibilityNodeInfo box = n.isCheckable() ? n : checkableInside(n, 0);
+                if (box != null) {
+                    el.put("checked", box.isChecked());
+                    CharSequence cls = box.getClassName();
+                    el.put("checkKind", cls != null && cls.toString().contains("Radio") ? "radio" : "check");
+                }
                 if (n.isPassword()) el.put("type", "password");
                 if (!n.isEditable()) {
                     String ctx = context(n, shown);
@@ -798,6 +839,18 @@ public class AuraAccessibilityService extends AccessibilityService implements Ca
         if (t != null && t.toString().trim().length() > 0) return t.toString().trim();
         CharSequence d = n.getContentDescription();
         return d != null ? d.toString().trim() : "";
+    }
+
+    private static AccessibilityNodeInfo checkableInside(AccessibilityNodeInfo n, int depth) {
+        if (n == null || depth > 3) return null;
+        for (int i = 0; i < n.getChildCount(); i++) {
+            AccessibilityNodeInfo c = n.getChild(i);
+            if (c == null) continue;
+            if (c.isCheckable()) return c;
+            AccessibilityNodeInfo inner = checkableInside(c, depth + 1);
+            if (inner != null) return inner;
+        }
+        return null;
     }
 
     private static String descendantText(AccessibilityNodeInfo n, int depth) {
@@ -866,8 +919,10 @@ public class AuraAccessibilityService extends AccessibilityService implements Ca
                 String pkg = running ? CartJobBridge.getInstance().appPackage : foregroundPackage();
                 List<AccessibilityNodeInfo> roots = pkg == null ? new java.util.ArrayList<>() : appRoots(pkg);
                 AccessibilityNodeInfo target = node != null && node.isScrollable() ? node : firstScrollable(roots.isEmpty() ? null : roots.get(0));
-                if (target != null && target.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)) return "scrolled";
-                swipeUp();
+                boolean up = "up".equals(a.optString("text"));
+                int act = up ? AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD : AccessibilityNodeInfo.ACTION_SCROLL_FORWARD;
+                if (target != null && target.performAction(act)) return "scrolled";
+                swipe(!up);
                 return "swiped";
             }
             case "back":

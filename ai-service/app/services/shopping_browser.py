@@ -28,6 +28,7 @@ from pydantic import BaseModel, Field
 from app.core.config import settings
 from app.ml.shopping_catalog import CATALOG, FOOD_APPS, canonical_app, canonical_item, dish_item
 from app.services.llm_service import LLMServiceError, llm_service
+from app.shopping import food_options as fo
 
 logger = structlog.get_logger()
 
@@ -140,6 +141,9 @@ class PageElement(BaseModel):
     value: str | None = None
     context: str | None = Field(None, description="text of the product card / section around the element")
     disabled: bool = False
+    # app mode: state of the radio button / checkbox in this row (None = the row has none), and which kind it is
+    checked: bool | None = None
+    checkKind: str | None = None
 
 
 class CartItem(BaseModel):
@@ -182,6 +186,7 @@ class StepRequest(BaseModel):
 
 class StepAction(BaseModel):
     # navigate | click | type | scroll | wait | back | item_done | need_user | done
+    # | ask (app mode: speak `message` and listen; the answer comes back as the record's result)
     # | history_done (switch to the cart phase) | set_items (replace the item list, see `items`)
     action: str
     items: list[dict] | None = None
@@ -303,7 +308,7 @@ def _page_text(req: StepRequest, limit: int = 140) -> str:
         if el.disabled:
             bits.append("disabled")
         lines.append(" ".join(bits))
-    hist = "\n".join(f"- {h.action} {h.target or ''} -> {h.result or ''} ({h.url or ''})" for h in req.history[-10:])
+    hist = "\n".join(f"- {h.action} {(h.target or '')[:80]} -> {(h.result or '')[:60]} ({h.url or ''})" for h in req.history[-10:])
     where = f"App: {req.appPackage}, screen {req.url}" if req.mode == "app" else f"URL: {req.url}"
     return (f"{where}\nTitle: {req.title}\nStep {req.step}\n\nRecent actions:\n{hist or '- none yet'}\n\n"
             f"Visible text (start):\n{req.pageText[:1200]}\n\nElements:\n" + "\n".join(lines))
@@ -511,6 +516,193 @@ def _cart_shows_items(req: StepRequest) -> bool:
     return any(_CART_BAR.search(f"{e.text or ''} {e.label or ''}") for e in req.elements)
 
 
+# ---------------------------------------------------------------------- customisation sheets: ask, don't assume
+# A food app's sheet (size, crust, toppings) is read in full (scrolling through it), the user is asked by voice, their
+# answer is applied option by option, and the final price is read back before "Add item". History records carry the
+# state between steps: scan#i@page@<groups>, ask#i@<groups> (result = answer), pick#i@<option>, seek#i@page,
+# check#i@<dish> (result = answer), manual#i@ (the user picks on screen), cancel#i@.
+MAX_SHEET_SCANS = 5
+MAX_SEEKS = 10
+_plans: dict[tuple, dict] = {}
+
+
+def _since_add(req: StepRequest, idx: int):
+    """(product, records after this item's last ADD tap), or None without one."""
+    for i in range(len(req.history) - 1, -1, -1):
+        t = _parse_tap(req.history[i].target)
+        if t and t[0] == "add" and t[1] == idx and (req.history[i].result or "").startswith("clicked"):
+            return t[2], req.history[i + 1:]
+    return None
+
+
+def _dish(product: str) -> str:
+    name = re.split(r"\s+[·?•|]\s+|\s+customi[sz]able", product)[0].strip()
+    return name.title() if name else "This dish"
+
+
+def _sheet_price(req: StepRequest) -> str | None:
+    button = _sheet_confirm(req)
+    prices = re.findall(r"₹\s?[\d,]+(?:\.\d+)?", f"{button.text or button.label or ''}") if button else []
+    return prices[-1].replace(" ", "") if prices else None
+
+
+async def _plan(dish: str, groups: list, answer: str) -> dict:
+    key = (dish, fo.dump(groups), answer)
+    if key in _plans:
+        return _plans[key]
+    try:
+        raw = await llm_service.chat_json(fo.llm_messages(dish, groups, answer), max_tokens=400, timeout=20, retries=1)
+        plan = {"__cancel__": []} if raw.get("cancel") else fo.clean_plan(raw.get("choices") or {}, groups)
+    except Exception as exc:  # the AI being unavailable must not stop the order: match option names instead
+        logger.warning("sheet_plan_fallback", error=str(exc)[:120])
+        plan = fo.rule_plan(answer, groups)
+    if len(_plans) > 200:
+        _plans.clear()
+    _plans[key] = plan
+    return plan
+
+
+def _ask(idx: int, target: str, message: str, reason: str) -> StepAction:
+    return StepAction(action="ask", itemIndex=idx, targetText=target, message=message, reason=reason, source="fast")
+
+
+async def sheet_step(req: StepRequest, idx: int | None) -> StepAction | None:
+    """The next step while this item's customisation sheet is open (app mode). None = not a sheet situation."""
+    if req.mode != "app" or idx is None:
+        return None
+    since = _since_add(req, idx)
+    if since is None:
+        return None
+    product, recs = since
+    item = req.items[idx]
+
+    def mine(kind: str) -> list[StepRecord]:
+        return [r for r in recs if (r.target or "").startswith(f"{kind}#{idx}@")]
+
+    if mine("cancel"):
+        return StepAction(action="item_done", itemIndex=idx, itemOk=False, source="fast",
+                          reason=f"{item.name}: not added (you said not to)")
+    if not _sheet_open(req):
+        return None
+    dish = _dish(product)
+    last = recs[-1] if recs else None
+    last_t = (last.target or "") if last else ""
+    button = _sheet_confirm(req)
+    price = _sheet_price(req)
+
+    def confirm(why: str) -> StepAction:
+        return StepAction(action="click", elementId=button.id, itemIndex=idx, targetText=_tap("confirm", idx, product),
+                          reason=why, source="fast")
+
+    def manual(msg: str) -> StepAction:
+        return StepAction(action="need_user", itemIndex=idx, targetText=f"manual#{idx}@", source="fast", message=msg,
+                          reason="the user chooses on screen")
+
+    def cancel() -> StepAction:
+        return StepAction(action="back", itemIndex=idx, targetText=f"cancel#{idx}@", source="fast",
+                          reason="you said not to add it")
+
+    if last_t.startswith(f"confirm#{idx}@"):
+        # pressed "Add item" and the sheet is still there: the app wants a choice that wasn't made
+        return manual(f"{req.store} still needs a choice on this screen. Pick it, then tap Continue.")
+    if last_t.startswith(f"manual#{idx}@"):
+        return confirm("you chose the options yourself: adding it")
+
+    pages = [r for r in recs if (r.target or "").startswith((f"scan#{idx}@", f"seek#{idx}@"))]
+    page = int(pages[-1].target.split("@")[1]) if pages else 0
+    screen = fo.read_sheet(req.elements, page)
+    lists = [e for e in req.elements if e.scrollable]
+    asks = mine("ask")
+    if not asks:
+        # 1. read the whole sheet: scroll down until nothing new appears
+        scans = mine("scan")
+        seen = fo.load(scans[-1].target.split("@", 2)[2]) if scans else []
+        groups, new = fo.merge(seen, screen)
+        if lists and (not scans or new) and len(scans) < MAX_SHEET_SCANS:
+            return StepAction(action="scroll", elementId=lists[0].id, text="down", itemIndex=idx, source="fast",
+                              targetText=f"scan#{idx}@{page + 1}@{fo.dump(groups)}", reason="reading all the options")
+        # 2. one question about every choice
+        q = fo.question(dish, groups)
+        if q is None:   # nothing to choose: straight to the price check
+            return _ask(idx, f"ask#{idx}@{fo.dump(groups)}", f"{fo.summary(dish, groups, {})}. {req.store} shows "
+                        f"{price or 'no price'}. Shall I add it to the cart?", "confirming the dish and price")
+        return _ask(idx, f"ask#{idx}@{fo.dump(groups)}", q, "asking about the options")
+
+    ask = asks[-1]
+    groups = fo.load(ask.target.split("@", 1)[1])
+    answer = (ask.result or "").strip()
+    if answer in ("", "(no answer)", "(no voice)"):
+        if len(asks) < 2 and answer != "(no voice)" and last is ask:
+            return _ask(idx, ask.target, "Sorry, I didn't catch that. " + (fo.question(dish, groups) or "Shall I add it?"),
+                        "asking again")
+        return manual(f"Pick the options for {dish} in {req.store}, then tap Continue and I'll add it.")
+    if fo.cancelled(answer):
+        return cancel()
+    if not fo.to_choose(groups):
+        # the only question was "shall I add it?"
+        if fo.yes(answer):
+            return confirm(f"you said yes: adding {dish}")
+        return cancel() if fo.plain_no(answer) else manual(
+            f"Change {dish} the way you want in {req.store}, then tap Continue to add it.")
+
+    # 3. apply the answer (plus any changes asked for at the price check)
+    checks = mine("check")
+    changes = [c.result for c in checks if c.result and c.result not in ("(no answer)", "(no voice)")
+               and not fo.yes(c.result) and not fo.plain_no(c.result) and not fo.cancelled(c.result)]
+    plan = await _plan(dish, groups, " ; then: ".join([answer] + changes))
+    if "__cancel__" in plan:
+        return cancel()
+    want = fo.desired(groups, plan)
+    answered_at = max(recs.index(r) for r in [ask] + checks)
+    picked = [r.target.split("@", 1)[1] for r in recs[answered_at:] if (r.target or "").startswith(f"pick#{idx}@")]
+    on_screen = {o.name.lower(): o for g in screen for o in g.options}
+    todo = []   # (option, select?, the row on this screen or None)
+    for g in groups:
+        for o in g.options if g.name in want else []:
+            target = want[g.name][o.name]
+            if not target and g.single:
+                continue        # choosing another radio option clears this one
+            now = on_screen.get(o.name.lower())
+            state = now.checked if now is not None else (target if o.name in picked else o.checked)
+            if state != target and picked.count(o.name) < 2:   # tapped twice without effect (sold out): leave it
+                todo.append((o, target, now))
+    visible = next((t for t in todo if t[2] is not None), None)
+    if visible:
+        o, target, now = visible
+        return StepAction(action="click", elementId=now.id, itemIndex=idx, targetText=f"pick#{idx}@{o.name}",
+                          reason=f"{'select' if target else 'remove'} {o.name}", source="fast")
+    if todo:
+        o = todo[0][0]
+        if len(mine("seek")) >= MAX_SEEKS:
+            return manual(f"I couldn't reach {o.name} on the screen. Pick it yourself, then tap Continue.")
+        down = o.page >= page
+        return StepAction(action="scroll", elementId=lists[0].id if lists else None, text="down" if down else "up",
+                          itemIndex=idx, targetText=f"seek#{idx}@{max(0, page + (1 if down else -1))}",
+                          reason=f"looking for {o.name}", source="fast")
+
+    # 4. everything applied: read the dish and the app's final price back before adding
+    check = checks[-1] if checks else None
+    last_pick = max((i for i, r in enumerate(recs) if (r.target or "").startswith(f"pick#{idx}@")), default=-1)
+    reply = (check.result or "").strip() if check else ""
+    change_applied = check is not None and reply in changes and last is not check
+    if check is None or recs.index(check) < last_pick or change_applied:
+        return _ask(idx, f"check#{idx}@{dish}", f"{fo.summary(dish, groups, plan)}. {req.store} shows "
+                    f"{price or 'no price yet'}. Shall I add it to the cart?", "confirming the dish and price")
+    if reply in ("", "(no answer)", "(no voice)"):
+        if len(checks) < 2 and reply != "(no voice)":
+            return _ask(idx, check.target, f"Shall I add {fo.summary(dish, groups, plan)} for {price or 'that price'}?",
+                        "asking again")
+        return manual(f"Check {dish} in {req.store} and tap Continue to add it, or Stop.")
+    if fo.yes(reply):
+        return confirm(f"you said yes: adding {dish}")
+    if fo.plain_no(reply) or fo.cancelled(reply):
+        return cancel()
+    if len(checks) >= 3:
+        return manual(f"Change {dish} the way you want in {req.store}, then tap Continue to add it.")
+    return _ask(idx, f"check#{idx}@{dish}", f"I couldn't match that to the options. It's {fo.summary(dish, groups, plan)} "
+                f"for {price or 'this price'}. Shall I add it, or what should I change?", "the change didn't match an option")
+
+
 # past orders and reorder cards: never the way to fill a new cart
 _PAST_ORDER = re.compile(r"\b(order delivered|delivered on|delivered at|order again|reorder|re-order|repeat order|past orders?|your orders)\b", re.I)
 
@@ -714,7 +906,7 @@ async def next_step(req: StepRequest) -> StepAction:
     if req.step >= limit:
         action = StepAction(action="done", message=f"Stopped after {req.step} steps; check the cart.", source="guard")
     else:
-        action = fast_step(req)
+        action = await sheet_step(req, idx) or fast_step(req)
         if action is None:
             key = store_key(req.store)
             current = f"{idx}: {req.items[idx].name} x{req.items[idx].qty}" if idx is not None else "none - all items handled"

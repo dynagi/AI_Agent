@@ -137,7 +137,7 @@ final class CartJobBridge {
         body.put("elements", snapshot.optJSONArray("elements") != null ? snapshot.getJSONArray("elements") : new JSONArray());
         body.put("pageText", snapshot.optString("pageText"));
         JSONArray recent = new JSONArray();
-        for (int i = Math.max(0, history.length() - 12); i < history.length(); i++) recent.put(history.get(i));
+        for (int i = Math.max(0, history.length() - 24); i < history.length(); i++) recent.put(history.get(i));   // sheets: scan, ask, picks, check
         body.put("history", recent);
         body.put("step", step);
         return body;
