@@ -422,7 +422,7 @@ def _tap(kind: str, idx: int, product: str) -> str:
 
 
 def _parse_tap(target: str | None) -> tuple[str, int, str] | None:
-    m = re.match(r"^(add|plus)#(\d+)@(.*)$", target or "")
+    m = re.match(r"^(add|plus|confirm)#(\d+)@(.*)$", target or "")
     return (m.group(1), int(m.group(2)), m.group(3)) if m else None
 
 
@@ -444,12 +444,34 @@ def _failed_adds(req: StepRequest, idx: int, product: str) -> int:
 
 
 def _added_ok(req: StepRequest, idx: int) -> bool:
-    """The item's last ADD tap worked, judged on the current screen."""
+    """The item's last ADD tap worked, judged on the current screen. Never while a customisation sheet is open:
+    behind the sheet the ADD button can't be seen, which looks like success but isn't."""
+    if _sheet_open(req):
+        return False
     for h in reversed(req.history):
         tap = _parse_tap(h.target)
-        if tap and tap[1] == idx and tap[0] == "add" and (h.result or "").startswith("clicked"):
-            return bool(tap[2]) and _add_gone(req, tap[2])
+        if tap and tap[1] == idx and tap[0] in ("add", "confirm") and (h.result or "").startswith("clicked"):
+            return bool(tap[2]) and (_add_gone(req, tap[2]) or (tap[0] == "confirm" and _cart_shows_items(req)))
     return False
+
+
+# a customisation sheet's confirm button ("Add item ₹229", "Add to cart"), and the cart bar that shows items in it
+_SHEET_CONFIRM = re.compile(r"^\s*(add item|add items|add to cart|add to order)\b", re.I)
+_SHEET_MARK = re.compile(r"\b(required|customi[sz]e|choose up to|select up to|add-?ons?)\b", re.I)
+_CART_BAR = re.compile(r"\b(view cart|\d+ items? added|item added|go to cart)\b", re.I)
+
+
+def _sheet_confirm(req: StepRequest) -> PageElement | None:
+    return next((e for e in req.elements if not e.disabled and _SHEET_CONFIRM.match(f"{e.text or e.label or ''}")), None)
+
+
+def _sheet_open(req: StepRequest) -> bool:
+    """A customisation sheet (size, crust, add-ons) is showing: its own confirm button is on screen."""
+    return _sheet_confirm(req) is not None
+
+
+def _cart_shows_items(req: StepRequest) -> bool:
+    return any(_CART_BAR.search(f"{e.text or ''} {e.label or ''}") for e in req.elements)
 
 
 # past orders and reorder cards: never the way to fill a new cart
@@ -499,6 +521,19 @@ def fast_step(req: StepRequest) -> StepAction | None:
     last = _last(req)
     # 1. verify this item's last tap: its ADD button is gone (a quantity stepper took its place)
     tap = _parse_tap(last.target) if last and last.action == "click" and (last.result or "").startswith("clicked") else None
+    if tap and tap[1] == idx and tap[0] in ("add", "confirm") and _sheet_open(req):
+        product = tap[2]
+        confirms = sum(1 for h in req.history if (t := _parse_tap(h.target)) and t[0] == "confirm" and t[1] == idx)
+        if confirms >= 2:
+            return None   # the sheet stays open (a required choice is missing): the LLM looks at it
+        button = _sheet_confirm(req)
+        return StepAction(action="click", elementId=button.id, itemIndex=idx, targetText=_tap("confirm", idx, product),
+                          reason="customisation sheet: confirm it with the choices already selected", source="fast")
+    if tap and tap[1] == idx and tap[0] == "confirm":
+        if tap[2] and (_add_gone(req, tap[2]) or _cart_shows_items(req)):
+            return StepAction(action="item_done", itemIndex=idx, itemOk=True, reason=f"{item.name} is in the cart",
+                              source="fast")
+        return None   # sheet closed but no sign of the item in the cart: the LLM looks at the screen
     if tap and tap[1] == idx and tap[0] == "add":
         product = tap[2]
         if product and _add_gone(req, product):

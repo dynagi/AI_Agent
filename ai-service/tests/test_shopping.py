@@ -1081,3 +1081,26 @@ def test_ai_cannot_report_an_item_added_without_a_verified_add_tap(monkeypatch):
     assert a.action == "item_done" and a.itemOk is False and "no verified Add tap" in a.reason
     a = asyncio.run(sb.next_step(req))
     assert a.action == "wait" and "past order" in a.reason
+
+
+
+def test_add_that_opens_a_customisation_sheet_is_confirmed_before_it_counts():
+    """Seen on the phone in Zomato: ADD opens a sheet (crust, size, "Add item ₹229"). The pizza is in the cart only
+    after "Add item"; the ADD hidden behind the sheet is not a success."""
+    E = sb.PageElement
+    product = "2in1 cheese burst pizza - margherita (reg)"
+    sheet = [E(id="n1", tag="TextView", text="2in1 Cheese Burst Pizza - Margherita (Reg)"),
+             E(id="n2", tag="TextView", text="Crust"), E(id="n3", tag="TextView", text="Required • 1 option available"),
+             E(id="n9", tag="Button", text="Add item ₹299 ₹229")]
+    tapped_add = sb.StepRecord(action="click", target=f"add#0@{product}", result="clicked")
+    req = sb.StepRequest(mode="app", phase="cart", store="Zomato", url="Menu", step=5, items=[sb.CartItem(name="pizza")],
+                         history=[tapped_add], elements=sheet)
+    a = sb.fast_step(req)
+    assert a.action == "click" and a.elementId == "n9" and a.targetText.startswith("confirm#0@")   # not "added"
+    assert not sb._added_ok(req, 0)
+    # after "Add item": the sheet is gone and the cart bar shows the item
+    after = sb.StepRequest(mode="app", phase="cart", store="Zomato", url="Menu", step=6, items=[sb.CartItem(name="pizza")],
+                           history=[tapped_add, sb.StepRecord(action="click", target=f"confirm#0@{product}", result="clicked")],
+                           elements=[E(id="n5", tag="TextView", text="1 item added"), E(id="n6", tag="Button", text="View cart")])
+    a = sb.fast_step(after)
+    assert a.action == "item_done" and a.itemOk is True
