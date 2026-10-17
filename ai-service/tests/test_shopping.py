@@ -1104,3 +1104,28 @@ def test_add_that_opens_a_customisation_sheet_is_confirmed_before_it_counts():
                            elements=[E(id="n5", tag="TextView", text="1 item added"), E(id="n6", tag="Button", text="View cart")])
     a = sb.fast_step(after)
     assert a.action == "item_done" and a.itemOk is True
+
+
+
+def test_add_button_vanishing_alone_is_not_proof_the_item_was_added():
+    """Seen on the phone in Zomato: right after ADD the screen showed neither the ADD nor the sheet (still loading),
+    and AURA said "added" while the sheet waited for "Add item". Now it waits for the screen, then confirms the sheet."""
+    E = sb.PageElement
+    product = "2in1 cheese burst pizza - margherita (reg)"
+    tapped_add = sb.StepRecord(action="click", target=f"add#0@{product}", result="clicked")
+    loading = [E(id="n1", tag="ImageView", text="2in1 Cheese Burst Pizza - Margherita (Reg)")]
+    req = sb.StepRequest(mode="app", phase="cart", store="Zomato", url="Menu", step=2, items=[sb.CartItem(name="pizza")],
+                         history=[tapped_add], elements=loading)
+    a = sb.fast_step(req)
+    assert a.action == "wait" and a.targetText.startswith("settle#0@")
+    assert not sb._added_ok(req, 0)
+    waited = sb.StepRecord(action="wait", target=a.targetText, result="waited")
+    sheet = loading + [E(id="n9", tag="Button", text="Add item ₹299  ₹229")]
+    req = sb.StepRequest(mode="app", phase="cart", store="Zomato", url="Menu", step=3, items=[sb.CartItem(name="pizza")],
+                         history=[tapped_add, waited], elements=sheet)
+    a = sb.fast_step(req)
+    assert a.action == "click" and a.elementId == "n9" and a.targetText.startswith("confirm#0@")
+    # never loads: after two waits the LLM looks at it, and nothing counts as added
+    req = sb.StepRequest(mode="app", phase="cart", store="Zomato", url="Menu", step=4, items=[sb.CartItem(name="pizza")],
+                         history=[tapped_add, waited, waited], elements=loading)
+    assert sb.fast_step(req) is None and not sb._added_ok(req, 0)

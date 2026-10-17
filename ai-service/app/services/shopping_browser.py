@@ -438,6 +438,41 @@ def _add_gone(req: StepRequest, product: str) -> bool:
     return _visible(req, product) and not any(_is_add(e) and _product(e).startswith(key) for e in req.elements)
 
 
+def _added_proof(req: StepRequest, product: str) -> bool:
+    """The ADD is gone AND something shows the item went in: its "+" stepper or the cart bar. An ADD that vanished
+    on its own proves nothing: a customisation sheet that is still loading hides it too (seen in Zomato)."""
+    return _add_gone(req, product) and (_plus_for(req, product) is not None or _stepper_for(req, product)
+                                        or _cart_shows_items(req))
+
+
+_STEPPER = re.compile(r"[−\-–]\s*\d+\s*\+")
+
+
+def _stepper_for(req: StepRequest, product: str) -> bool:
+    """A quantity stepper ("− 1 +", or the count on its own) where this product's ADD was."""
+    key = product[:25]
+    return bool(key) and any(_product(e).startswith(key) and (re.fullmatch(r"\d{1,2}", (e.text or "").strip())
+                                                              or _STEPPER.search(f"{e.text or ''} {e.context or ''}"))
+                             for e in req.elements)
+
+
+MAX_SETTLE_WAITS = 2  # waits for the screen to finish loading after an ADD before the LLM looks at it
+
+
+def _settle_waits(req: StepRequest, idx: int) -> int:
+    n = 0
+    for h in reversed(req.history):
+        if not (h.target or "").startswith(f"settle#{idx}@"):
+            break
+        n += 1
+    return n
+
+
+def _last_tap(req: StepRequest):
+    """The last step, skipping the waits taken to let the screen settle after a tap."""
+    return next((h for h in reversed(req.history) if not (h.target or "").startswith("settle#")), None)
+
+
 def _failed_adds(req: StepRequest, idx: int, product: str) -> int:
     return sum(1 for h in req.history if (t := _parse_tap(h.target)) and t[0] == "add" and t[1] == idx
                and t[2][:25] == product[:25] and (h.result or "").startswith("clicked"))
@@ -451,7 +486,7 @@ def _added_ok(req: StepRequest, idx: int) -> bool:
     for h in reversed(req.history):
         tap = _parse_tap(h.target)
         if tap and tap[1] == idx and tap[0] in ("add", "confirm") and (h.result or "").startswith("clicked"):
-            return bool(tap[2]) and (_add_gone(req, tap[2]) or (tap[0] == "confirm" and _cart_shows_items(req)))
+            return bool(tap[2]) and (_added_proof(req, tap[2]) or (tap[0] == "confirm" and _cart_shows_items(req)))
     return False
 
 
@@ -518,7 +553,7 @@ def fast_step(req: StepRequest) -> StepAction | None:
         return StepAction(action="done", message=_cart_summary(req), source="fast")
 
     item = req.items[idx]
-    last = _last(req)
+    last = _last_tap(req)
     # 1. verify this item's last tap: its ADD button is gone (a quantity stepper took its place)
     tap = _parse_tap(last.target) if last and last.action == "click" and (last.result or "").startswith("clicked") else None
     if tap and tap[1] == idx and tap[0] in ("add", "confirm") and _sheet_open(req):
@@ -530,13 +565,18 @@ def fast_step(req: StepRequest) -> StepAction | None:
         return StepAction(action="click", elementId=button.id, itemIndex=idx, targetText=_tap("confirm", idx, product),
                           reason="customisation sheet: confirm it with the choices already selected", source="fast")
     if tap and tap[1] == idx and tap[0] == "confirm":
-        if tap[2] and (_add_gone(req, tap[2]) or _cart_shows_items(req)):
+        if tap[2] and (_added_proof(req, tap[2]) or _cart_shows_items(req)):
             return StepAction(action="item_done", itemIndex=idx, itemOk=True, reason=f"{item.name} is in the cart",
                               source="fast")
         return None   # sheet closed but no sign of the item in the cart: the LLM looks at the screen
     if tap and tap[1] == idx and tap[0] == "add":
         product = tap[2]
-        if product and _add_gone(req, product):
+        if product and _add_gone(req, product) and not _added_proof(req, product):
+            if _settle_waits(req, idx) < MAX_SETTLE_WAITS:
+                return StepAction(action="wait", itemIndex=idx, targetText=_tap("settle", idx, product),
+                                  reason="checking it really went into the cart", source="fast")
+            return None  # still no stepper or cart bar: the LLM looks (and can't claim it added without proof)
+        if product and _added_proof(req, product):
             if item.qty > 1:
                 plus = _plus_for(req, product)
                 if plus:
