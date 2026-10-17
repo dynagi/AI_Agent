@@ -35,9 +35,10 @@ FLIGHT_INTENT = re.compile(r"\b(flights?|fly|flying|airfare|plane tickets?|air t
 SESSION_TTL_S = 15 * 60
 PREF_FIELDS = ("time_of_day", "depart_after", "depart_before", "direct", "max_hours", "airline", "avoid_airline",
                "budget", "priority")
-PREFS_QUESTION = ("Before I search, a few quick things: do you want a direct flight, a day or night departure, "
-                  "any airline or budget, and what matters most, the lowest price, shorter travel time, or comfort? "
-                  "Or say no preference.")
+# every question ends with "?": that is what keeps the "Hey Aura" panel listening for the answer
+PREFS_QUESTION = ("Before I search, a few quick things. Do you want a direct flight, a day or night departure, "
+                  "any airline or budget, and what matters most: the lowest price, shorter travel time, or comfort? "
+                  "Or do you have no preference?")
 
 
 @dataclass
@@ -380,7 +381,7 @@ async def handle(message: str, user_id: str) -> str | None:
     missing = [w for w, k in (("where you're flying from", "origin"), ("where to", "destination"),
                               ("which date", "date")) if not s.trip.get(k)]
     if missing:
-        s.question = f"Sure. Tell me {' and '.join(missing)}."
+        s.question = f"Sure. Can you tell me {' and '.join(missing)}?"
         return s.question
     if s.trip["date"] < date.today().isoformat():
         s.trip.pop("date")

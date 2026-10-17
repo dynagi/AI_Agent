@@ -201,3 +201,11 @@ def test_cheapest_of_the_fitting_flights_is_not_called_the_cheapest(fake):
     fake["replies"] += [dict(TRIP, direct=True, time_of_day="morning", priority="price")]
     r = say("cheapest direct morning flight Bangalore to Chandigarh on the 31st")
     assert "cheapest of the flights that fit" in r and "SpiceJet SG 1 at ₹13,900" in r
+
+
+def test_every_question_ends_with_a_question_mark_so_aura_keeps_listening(fake):
+    fake["replies"] += [{"relevant": True, "destination_city": "Delhi", "destination_code": "DEL"}, dict(TRIP)]
+    assert say("I want to fly to Delhi").endswith("?")
+    fa.reset("u1")
+    assert say("flight from Bangalore to Chandigarh on the 31st").endswith("?")
+    assert fa.PREFS_QUESTION.endswith("?")
