@@ -1058,3 +1058,26 @@ def test_free_nvidia_models_get_room_to_answer_and_never_speak_their_notes(monke
     monkeypatch.setattr(p, "api_key", "key")
     with pytest.raises(ls.LLMServiceError):
         asyncio.run(p.chat([{"role": "user", "content": "hi"}], retries=1))
+
+
+
+def test_ai_cannot_report_an_item_added_without_a_verified_add_tap(monkeypatch):
+    """Seen on the phone: the model tapped a past order, then said "pizza added". Nothing was added."""
+    E = sb.PageElement
+    req = sb.StepRequest(mode="app", phase="cart", store="Zomato", url="Home", step=6,
+                         items=[sb.CartItem(name="pizza")],
+                         history=[sb.StepRecord(action="type", target="search@pizza", result="ok"),
+                                  sb.StepRecord(action="click", target="Wendy's Burgers Order delivered", result="clicked")],
+                         elements=[E(id="n35", tag="Button", text="View cart"),
+                                   E(id="n36", tag="TextView", text="Wendy's Burgers Order delivered")])
+    replies = [{"action": "item_done", "itemOk": True, "reason": "Cart shows 1 item, pizza added"},
+               {"action": "click", "elementId": "n36", "reason": "Click the cart icon"}]
+
+    async def chat_json(*a, **k):
+        return replies.pop(0)
+    monkeypatch.setattr(sb.llm_service, "chat_json", chat_json)
+    monkeypatch.setattr(sb, "fast_step", lambda r: None)
+    a = asyncio.run(sb.next_step(req))
+    assert a.action == "item_done" and a.itemOk is False and "no verified Add tap" in a.reason
+    a = asyncio.run(sb.next_step(req))
+    assert a.action == "wait" and "past order" in a.reason

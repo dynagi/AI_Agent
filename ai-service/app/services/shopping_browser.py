@@ -224,6 +224,8 @@ How to work:
   (repeat = qty-1) after it was added. If a size/variant picker pops up, pick the closest match and confirm adding.
 - After the item is in the cart (the ADD turned into a quantity stepper, or "added to cart" shown), the item is done.
   If it is out of stock or not sold here after one or two searches, use item_done with itemOk=false and move on.
+  Past orders ("Order delivered", "Reorder", "Order again") and items already sitting in the cart are NOT the item
+  being added: never tap them, and never report an item as added unless you pressed its ADD in this run.
 - Close popups/banners that block the page. If the site needs login, OTP, a delivery location/address, or a captcha,
   use need_user with a clear message; never type into login/OTP/password/payment fields yourself.
 - When every item is added or failed: open the cart (cart icon / "View cart") so the user can see it, then done.
@@ -450,6 +452,15 @@ def _added_ok(req: StepRequest, idx: int) -> bool:
     return False
 
 
+# past orders and reorder cards: never the way to fill a new cart
+_PAST_ORDER = re.compile(r"\b(order delivered|delivered on|delivered at|order again|reorder|re-order|repeat order|past orders?|your orders)\b", re.I)
+
+
+def el_text(req: "StepRequest", element_id) -> str:
+    el = _element(req, str(element_id)) if element_id is not None else None
+    return f"{el.text or ''} {el.label or ''}".strip() if el is not None else ""
+
+
 MAX_ADD_TAPS = 3  # taps on the same product's ADD without it turning into a stepper, then give up on the item
 
 
@@ -655,6 +666,13 @@ async def next_step(req: StepRequest) -> StepAction:
                                         source="llm")
                 else:
                     action.targetText = f"search@{cur.name}"
+    if action.action == "item_done" and action.itemOk is not False and idx is not None and not _added_ok(req, idx):
+        # the model says the item is in the cart, but no ADD tap for it was verified in this run: it is not counted
+        # (a past order or an old cart item on screen is not this item being added)
+        action = StepAction(action="item_done", itemIndex=idx, itemOk=False, source="guard",
+                            reason=f"{req.items[idx].name}: not added (no verified Add tap)")
+    if action.action == "click" and req.phase == "cart" and el_text(req, action.elementId) and _PAST_ORDER.search(el_text(req, action.elementId)):
+        action = StepAction(action="wait", source="guard", reason="not opening a past order while filling the cart")
     tap = _parse_tap(action.targetText) if action.action == "click" else None
     if tap and tap[0] == "add" and idx is not None and _failed_adds(req, idx, tap[2]) >= MAX_ADD_TAPS:
         action = StepAction(action="item_done", itemIndex=idx, itemOk=False,
