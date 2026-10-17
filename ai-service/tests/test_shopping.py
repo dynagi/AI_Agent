@@ -1078,6 +1078,11 @@ def test_ai_cannot_report_an_item_added_without_a_verified_add_tap(monkeypatch):
     monkeypatch.setattr(sb.llm_service, "chat_json", chat_json)
     monkeypatch.setattr(sb, "fast_step", lambda r: None)
     a = asyncio.run(sb.next_step(req))
+    # never looked for yet: not counted, and not given up on either (it keeps searching)
+    assert a.action == "wait" and a.targetText == "notyet#0@" and "isn't added yet" in a.reason
+    req.history += [sb.StepRecord(action="wait", target="notyet#0@", result="waited")] * 2
+    replies.insert(0, {"action": "item_done", "itemOk": True, "reason": "Cart shows 1 item, pizza added"})
+    a = asyncio.run(sb.next_step(req))
     assert a.action == "item_done" and a.itemOk is False and "no verified Add tap" in a.reason
     a = asyncio.run(sb.next_step(req))
     assert a.action == "wait" and "past order" in a.reason

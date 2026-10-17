@@ -945,8 +945,15 @@ async def next_step(req: StepRequest) -> StepAction:
     if action.action == "item_done" and action.itemOk is not False and idx is not None and not _added_ok(req, idx):
         # the model says the item is in the cart, but no ADD tap for it was verified in this run: it is not counted
         # (a past order or an old cart item on screen is not this item being added)
-        action = StepAction(action="item_done", itemIndex=idx, itemOk=False, source="guard",
-                            reason=f"{req.items[idx].name}: not added (no verified Add tap)")
+        tried = any((t := _parse_tap(h.target)) and t[0] == "add" and t[1] == idx for h in req.history)
+        not_yet = sum(1 for h in req.history if h.target == f"notyet#{idx}@")
+        if not tried and not_yet < 2:
+            # it hasn't even been looked for yet (seen on the phone: an older cart item made the model stop early)
+            action = StepAction(action="wait", itemIndex=idx, targetText=f"notyet#{idx}@", source="guard",
+                                reason=f"{req.items[idx].name} isn't added yet: searching for it")
+        else:
+            action = StepAction(action="item_done", itemIndex=idx, itemOk=False, source="guard",
+                                reason=f"{req.items[idx].name}: not added (no verified Add tap)")
     if action.action == "click" and req.phase == "cart" and el_text(req, action.elementId) and _PAST_ORDER.search(el_text(req, action.elementId)):
         action = StepAction(action="wait", source="guard", reason="not opening a past order while filling the cart")
     tap = _parse_tap(action.targetText) if action.action == "click" else None
