@@ -10,6 +10,8 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from app.services.llm_service import LLMServiceError, llm_service
+import time
+
 import structlog
 
 from app.travel import assistant as flight_assistant
@@ -73,8 +75,28 @@ You cannot read their messages or contacts, make calls or payments by yourself. 
 Reply with ONLY this JSON: {"say": "<what you speak>", "do": [<0-3 actions>]}"""
 
 
+# The phone can send the same spoken sentence more than once (its voice service asks the server directly while the
+# app's web view answers too). A repeat must get the same reply, not be acted on again (seen: the second copy of
+# "direct, evening, cheapest" was taken as choosing the flight, which ended the flight conversation).
+REPEAT_WINDOW_S = 20
+_recent: dict[tuple[str, str], tuple[float, "ConverseResponse"]] = {}
+
+
 @router.post("/converse", response_model=ConverseResponse)
 async def converse(req: ConverseRequest) -> ConverseResponse:
+    key = (req.userId or "anonymous", req.message.strip().lower())
+    now = time.time()
+    hit = _recent.get(key)
+    if hit and now - hit[0] < REPEAT_WINDOW_S and key[0] != "anonymous":
+        return hit[1]
+    reply = await _converse(req)
+    for k in [k for k, (t, _) in _recent.items() if now - t > REPEAT_WINDOW_S]:
+        _recent.pop(k, None)
+    _recent[key] = (now, reply)
+    return reply
+
+
+async def _converse(req: ConverseRequest) -> ConverseResponse:
     # flights have their own assistant (live search, prices per website, preferences); it answers when the message
     # is about a flight or replies to one of its questions, and stays out of everything else
     had_session = flight_assistant._session(req.userId or "anonymous") is not None

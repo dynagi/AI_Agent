@@ -227,3 +227,16 @@ def test_pick_cheaper_on_a_website_than_another_flight_is_not_called_more_expens
     monkeypatch.setitem(SITES, "tok-direct-morning", {"booking_options": [{"book_with": "ly.com", "price": 13000}]})
     r = say("cheapest direct morning flight Bangalore to Chandigarh on the 31st")
     assert "₹13,000 on ly.com" in r and "It's also the cheapest flight." in r and "cheapest overall" not in r
+
+
+def test_the_same_sentence_sent_twice_is_answered_once(fake):
+    """Seen on the phone: the reply to AURA's question reached the server three times; the repeats were acted on."""
+    from app.routers import companion
+    companion._recent.clear()
+    fake["replies"] += [dict(TRIP), {"relevant": True, "direct": True, "time_of_day": "morning", "priority": "time"},
+                        {"relevant": True, "confirm": True}]
+    ask = lambda m: asyncio.run(companion.converse(companion.ConverseRequest(message=m, userId="u1"))).say
+    ask("find me a flight from Bangalore to Chandigarh on the 31st")
+    first = ask("direct, morning, shortest travel time")
+    assert ask("direct, morning, shortest travel time") == first and fake["search"] == 1
+    assert fa._session("u1") is not None and not any(e["action"] == fp.CHOICE_EVENT for e in fake["events"])
