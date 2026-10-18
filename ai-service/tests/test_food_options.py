@@ -179,3 +179,32 @@ def test_a_container_around_a_whole_group_is_not_an_option():
     groups = fo.read_sheet(sheet)
     assert [(g.name, [o.name for o in g.options]) for g in groups] == [("Crust", ["Cheese Burst"]), ("Size", ["Large Plus"])]
     assert fo.question("Big Big 6in1 Cheeseburst - Veg", groups) is None      # nothing to choose: only the price check
+
+
+def test_ai_cannot_add_an_unrelated_suggestion_or_confirm_a_sheet_itself(monkeypatch):
+    """Seen on the phone: asked for a veg burger, the AI added a "BK Veg Pizza Puff" from the "pairs well with" row,
+    and pressed a combo sheet's "Add item ₹139" without asking."""
+    item = sb.CartItem(name="Korean Crispy Veg Burger Combo")
+    replies = []
+
+    async def chat_json(*a, **k):
+        return replies.pop(0)
+    monkeypatch.setattr(sb.llm_service, "chat_json", chat_json)
+    monkeypatch.setattr(sb, "fast_step", lambda r: None)
+    req = sb.StepRequest(mode="app", phase="cart", store="Zomato", url="Menu", step=5, items=[item],
+                         elements=[E(id="n1", tag="Button", text="ADD", context="BK Veg Pizza Puff. ₹59"),
+                                   E(id="n2", tag="Button", text="Add item ₹234 ₹139")])
+    replies.append({"action": "click", "elementId": "n1", "reason": "add it"})
+    a = asyncio.run(sb.next_step(req))
+    assert a.action == "wait" and "isn't" in a.reason
+    replies.append({"action": "click", "elementId": "n2", "reason": "add item"})
+    a = asyncio.run(sb.next_step(req))
+    assert a.action == "wait" and a.targetText.startswith("add#0@") and "asking you" in a.reason
+    # from there the sheet flow takes over: it asks first
+    req.history = [sb.StepRecord(action="wait", target=a.targetText, result="waited")]
+    a = asyncio.run(sb.next_step(req))
+    assert a.action == "ask" and "₹139" in a.message
+
+
+def test_dish_name_read_aloud_without_separators():
+    assert sb._dish("· bk veg pizza puff.") == "Bk Veg Pizza Puff"

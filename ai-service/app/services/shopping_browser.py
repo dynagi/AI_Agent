@@ -526,17 +526,29 @@ MAX_SEEKS = 10
 _plans: dict[tuple, dict] = {}
 
 
+_GENERIC = {"veg", "non", "nonveg", "combo", "meal", "regular", "small", "medium", "large", "with", "and", "the", "for",
+            "new", "special", "classic", "plus", "free", "pack", "box", "half", "full", "single", "double"}
+
+
+def _related(product: str, item: CartItem) -> bool:
+    """The product shares a distinctive word with what the user asked for (or the item's hint)."""
+    words = lambda t: {w for w in re.findall(r"[a-z]+", (t or "").lower()) if len(w) > 2 and w not in _GENERIC}
+    asked = words(item.name) | words(item.hint)
+    return not asked or bool(words(product) & asked)
+
+
 def _since_add(req: StepRequest, idx: int):
     """(product, records after this item's last ADD tap), or None without one."""
     for i in range(len(req.history) - 1, -1, -1):
         t = _parse_tap(req.history[i].target)
-        if t and t[0] == "add" and t[1] == idx and (req.history[i].result or "").startswith("clicked"):
+        if t and t[0] == "add" and t[1] == idx and ((req.history[i].result or "").startswith("clicked")
+                                                     or req.history[i].action == "wait"):
             return t[2], req.history[i + 1:]
     return None
 
 
 def _dish(product: str) -> str:
-    name = re.split(r"\s+[·?•|]\s+|\s+customi[sz]able", product)[0].strip()
+    name = re.split(r"\s+[·?•|]\s+|\s+customi[sz]able", product.strip(" ·?•|.-"))[0].strip(" ·?•|.-")
     return name.title() if name else "This dish"
 
 
@@ -725,7 +737,7 @@ def _last(req: StepRequest, action: str | None = None):
 def _cart_summary(req: StepRequest) -> str:
     """What the cart screen actually shows, item by item (the user sees this as the final message)."""
     names = [_product(e) for e in req.elements] + [_product(PageElement(id="t", context=req.pageText))]
-    seen = [it.name for it in req.items if any(_same_item(n, it) for n in names if n)]
+    seen = [it.name for it in req.items if it.status == "added" or any(_same_item(n, it) for n in names if n)]
     missing = [it.name for it in req.items if it.name not in seen]
     if not missing:
         return "In your cart: " + ", ".join(seen) + "."
@@ -892,6 +904,16 @@ async def next_step(req: StepRequest) -> StepAction:
 
     t0 = time.time()
     if req.phase == "history":
+        stuck = 0
+        for h in reversed(req.history):
+            if h.action != "wait":
+                break
+            stuck += 1
+        if stuck >= 3:
+            action = StepAction(action="history_done", source="guard",
+                                reason="couldn't read past orders here: going on with the order")
+            _log_step(req, action, None, t0)
+            return action
         action = await reader.history_step(req)
         _log_step(req, action, None, t0)
         return action
@@ -954,6 +976,17 @@ async def next_step(req: StepRequest) -> StepAction:
         else:
             action = StepAction(action="item_done", itemIndex=idx, itemOk=False, source="guard",
                                 reason=f"{req.items[idx].name}: not added (no verified Add tap)")
+    if action.source == "llm" and action.action == "click" and idx is not None and req.mode == "app":
+        el = _element(req, action.elementId)
+        if el is not None and _SHEET_CONFIRM.match(f"{el.text or el.label or ''}") \
+                and _since_add(req, idx) is None:
+            # opened by tapping the dish card, not its ADD: handled like an ADD, so the user is asked first
+            action = StepAction(action="wait", itemIndex=idx, targetText=_tap("add", idx, req.items[idx].name.lower()),
+                                reason="a customisation sheet is open: asking you before adding", source="guard")
+        tap = _parse_tap(action.targetText) if action.action == "click" else None
+        if tap and tap[0] == "add" and tap[2] and not _related(tap[2], req.items[idx]):
+            action = StepAction(action="wait", itemIndex=idx, source="guard",
+                                reason=f"not adding {tap[2][:40]}: it isn't {req.items[idx].name}")
     if action.action == "click" and req.phase == "cart" and el_text(req, action.elementId) and _PAST_ORDER.search(el_text(req, action.elementId)):
         action = StepAction(action="wait", source="guard", reason="not opening a past order while filling the cart")
     tap = _parse_tap(action.targetText) if action.action == "click" else None

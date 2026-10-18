@@ -506,7 +506,9 @@ public class AuraAccessibilityService extends AccessibilityService implements Ca
                 job.finish(job.store + " app isn't installed.");
                 return;
             }
-            launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+            // start on the store's home screen, not wherever it was left (seen: an open "Update item" sheet of an
+            // older cart item made the agent think the new item was already done)
+            launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
             startActivity(launch);
             scheduleStep(3000);
         });
