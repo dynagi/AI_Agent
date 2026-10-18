@@ -302,6 +302,10 @@ async function runActions(actions: ConverseAction[], nav: Nav, now: number): Pro
     else if (a.type === 'set_mood' && ['Great', 'Good', 'Okay', 'Low', 'Stressed'].includes(String(args.mood))) upsertTodayLog({ mood: String(args.mood) });
     else if (a.type === 'navigate' && typeof args.path === 'string' && args.path.startsWith('/')) nav(args.path);
     else if (a.type === 'order' && typeof args.text === 'string') nav('/shopping', { state: { ask: args.text } });
+    else if (a.type === 'open_url' && typeof args.url === 'string' && args.url.startsWith('https://')) {
+      if (Capacitor.isNativePlatform()) await AuraPhone.openUrl({ url: args.url }).catch(() => undefined);
+      else window.open(args.url, '_blank', 'noopener');
+    }
   }
   return override;
 }

@@ -87,6 +87,19 @@ public class AuraPhonePlugin extends Plugin {
         call.resolve();
     }
 
+    /** Opens an https page (a booking site) in the phone's browser or the site's own app. */
+    @PluginMethod
+    public void openUrl(PluginCall call) {
+        String url = call.getString("url", "");
+        if (url == null || !url.startsWith("https://")) { call.reject("Only https links"); return; }
+        try {
+            getContext().startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Could not open the link");
+        }
+    }
+
     /** Opens the installed app whose name best matches `name`; otherwise returns the closest names so the user can pick. */
     @PluginMethod
     public void openApp(PluginCall call) {

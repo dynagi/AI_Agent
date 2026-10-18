@@ -6,6 +6,8 @@ export interface AuraPhonePlugin {
   stopSpeaking(): Promise<void>;
   /** Opens the installed app whose name best matches; otherwise returns the closest names. */
   openApp(options: { name: string }): Promise<{ opened: boolean; label?: string; suggestions?: string[] }>;
+  /** Opens an https page (a booking site) in the browser or the site's own app. */
+  openUrl(options: { url: string }): Promise<void>;
   /** Opens the dialer with the number filled in — the user presses call. */
   dial(options: { number: string }): Promise<void>;
   addListener(eventName: 'speechDone', listenerFunc: (data: { id: string }) => void): Promise<PluginListenerHandle>;

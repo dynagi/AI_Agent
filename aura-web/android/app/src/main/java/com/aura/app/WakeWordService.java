@@ -620,6 +620,20 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
         ScreenApi.converse(text, (json, error) -> {
             if (!inSession || requestId != id || answered || destroyed) return;
             org.json.JSONArray actions = json == null ? null : json.optJSONArray("do");
+            String link = onlyLink(actions);
+            if (error == null && link != null) {
+                // a booking page (flight site, redBus, trains): opened right here, then the reply is spoken over it
+                try {
+                    Intent view = new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(link)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    if (AuraAccessibilityService.instance != null) AuraAccessibilityService.instance.startActivity(view);
+                    else startActivity(view);
+                } catch (Exception e) {
+                    Log.w(TAG, "could not open the link: " + e.getMessage());
+                }
+                String say = json.optString("say", "").trim();
+                answer(say, say.endsWith("?"), false, false);
+                return;
+            }
             if (error == null && actions != null && actions.length() > 0) {
                 // The answer needs the app (an order, a screen, logging water / a meal / a medicine). Saying it here
                 // would claim something that isn't done, so the app is brought forward instead: that wakes its web
@@ -643,6 +657,16 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
                 answer("AURA's server isn't answering. It may be waking up, so ask me again in a minute.", false, false);
             }
         });
+    }
+
+    /** The https page to open when the server's only action is "open_url"; null otherwise. */
+    private static String onlyLink(org.json.JSONArray actions) {
+        if (actions == null || actions.length() != 1) return null;
+        org.json.JSONObject a = actions.optJSONObject(0);
+        if (a == null || !"open_url".equals(a.optString("type"))) return null;
+        org.json.JSONObject args = a.optJSONObject("args");
+        String url = args == null ? "" : args.optString("url", "");
+        return url.startsWith("https://") ? url : null;
     }
 
     /** The app's reply to the command (AuraWakePlugin.reply). */

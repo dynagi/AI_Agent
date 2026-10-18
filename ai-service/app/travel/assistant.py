@@ -55,6 +55,7 @@ class Session:
     ranked: list[Fit] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
     sites: dict[int, list[live.SiteOffer]] = field(default_factory=dict)
+    link: tuple[str, str, str] | None = None     # (booking site, its page, which flight) for "open it"
     touched: float = field(default_factory=time.time)
 
 
@@ -248,6 +249,7 @@ async def _recommend(s: Session) -> str:
     cheapest = min((f.flight for f in s.ranked), key=lambda f: f.price or 1e12)
     # both lookups at once: one after the other made the spoken answer miss the phone's time limit
     sites, _ = await asyncio.gather(_sites(s, best), _sites(s, cheapest))
+    _keep_link(s, best, sites)
     say = (f"For you I'd pick {_who(best)}: leaves {_clock(best.depart)}, lands {_clock(best.arrive)}, "
            f"{_stops(best)}, {hours(best.minutes)}, {_sites_line(sites, best)}.")
     overall = min((f for f in s.result.flights if f.price), key=lambda f: f.price, default=best)
@@ -295,6 +297,40 @@ async def _details(s: Session) -> str:
     return " ".join(lines) + " Prices include taxes and fees as listed. " + s.question
 
 
+# where "open it" takes the user: the booking site's own page (the flight is then searched there), or Google Flights
+SITE_URLS = [("air india express", "https://www.airindiaexpress.com"), ("air india", "https://www.airindia.com"),
+             ("indigo", "https://www.goindigo.in"), ("spicejet", "https://www.spicejet.com"),
+             ("akasa", "https://www.akasaair.com"), ("easemytrip", "https://www.easemytrip.com/flights.html"),
+             ("makemytrip", "https://www.makemytrip.com/flights/"), ("goibibo", "https://www.goibibo.com/flights/"),
+             ("cleartrip", "https://www.cleartrip.com/flights"), ("ixigo", "https://www.ixigo.com/flights"),
+             ("yatra", "https://www.yatra.com/flights"), ("ly.com", "https://www.ly.com"),
+             ("skyticket", "https://skyticket.com")]
+OPEN_SITE = re.compile(r"\b(open|book|go to|take me to)\b.{0,20}\b(it|that|this|site|website|link|there|one)\b|"
+                       r"^\s*(book|open)( it| this| that| the site)?\s*[.!]?\s*$", re.I)
+_links: dict[str, tuple[float, str, str, str]] = {}   # user -> (when, site, url, which flight)
+_open_now: dict[str, str] = {}                        # user -> page to open with this reply
+
+
+def site_url(site: str, result: live.SearchResult | None) -> str:
+    name = (site or "").lower()
+    for key, url in SITE_URLS:
+        if key in name:
+            return url
+    if result is not None and result.google_flights_url:
+        return result.google_flights_url
+    return "https://www.google.com/travel/flights"
+
+
+def _keep_link(s: Session, f: live.Flight, sites: list) -> None:
+    site = sites[0].site if sites else "Google Flights"
+    s.link = (site, site_url(site if sites else "", s.result), f"{f.airline} {f.flight_numbers}")
+
+
+def take_open(user_id: str) -> str | None:
+    """The page to open on the phone with the reply just given (after "open it"), once."""
+    return _open_now.pop(user_id, None)
+
+
 async def _choose(s: Session, user_id: str, n: int) -> str:
     if not 1 <= n <= len(s.ranked):
         return f"I only have {len(s.ranked)} options. Which one would you like?"
@@ -309,9 +345,11 @@ async def _choose(s: Session, user_id: str, n: int) -> str:
              + (f"; {sites[1].site} has it for {_rupees(sites[1].price)}" if len(sites) > 1 else "")) if sites \
         else f"It's {_rupees(f.price)} on Google Flights"
     bag = f" Baggage: {', '.join(sites[0].baggage)}." if sites and sites[0].baggage else ""
+    _keep_link(s, f, sites)
+    _links[user_id] = (time.time(), *s.link)
     return (f"Noted: {f.airline} {f.flight_numbers} on {_day(s.result.date)}, {_clock(f.depart)} from {s.result.origin}. "
-            f"{where}.{bag} I can't book or pay for it myself, so search this flight on that site to book it. "
-            "I'll remember what you chose for next time.")
+            f"{where}.{bag} I can't book or pay for it myself. Say \"open it\" and I'll open {s.link[0]}, "
+            "then pick this flight there.")
 
 
 async def _remember(user_id: str, event: dict) -> None:
@@ -336,6 +374,19 @@ async def _learned(user_id: str) -> FlightPrefs:
 # ---------------------------------------------------------------------------------- the conversation
 async def handle(message: str, user_id: str) -> str | None:
     """AURA's reply when the message is about flights (or answers a flight question); None when it isn't."""
+    reply = await _handle(message, user_id)
+    s = _session(user_id)
+    if s is not None and getattr(s, "link", None):
+        _links[user_id] = (time.time(), *s.link)
+    return reply
+
+
+async def _handle(message: str, user_id: str) -> str | None:
+    # "open it" / "book it": the booking site of the flight AURA recommended or the user chose
+    link = _links.get(user_id)
+    if OPEN_SITE.search(message) and link and time.time() - link[0] < 15 * 60:
+        _open_now[user_id] = link[2]
+        return (f"Opening {link[1]} for {link[3]}. Find that flight there to book it; booking and payment are up to you.")
     s = _session(user_id)
     if s is None:
         if not FLIGHT_INTENT.search(message):

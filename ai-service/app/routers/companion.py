@@ -16,12 +16,13 @@ import time
 import structlog
 
 from app.travel import assistant as flight_assistant
+from app.travel import ground
 
 router = APIRouter(prefix="/ai", tags=["companion"])
 
 # Screens the companion may take the user to.
 NAV_PATHS = {"/dashboard", "/wellness", "/wellness?tab=Medicines", "/shopping", "/calendar", "/tasks", "/finance", "/travel", "/chat"}
-ACTION_TYPES = {"open_app", "log_water", "log_meal", "took_medicine", "set_mood", "navigate", "order"}
+ACTION_TYPES = {"open_app", "log_water", "log_meal", "took_medicine", "set_mood", "navigate", "order", "open_url"}
 
 
 class Turn(BaseModel):
@@ -121,7 +122,15 @@ async def _converse(req: ConverseRequest) -> ConverseResponse:
     structlog.get_logger().info("converse_route", route="flight" if flight_reply is not None else "chat",
                                 had_flight_session=had_session, signed_in=bool(req.userId), history=len(req.history))
     if flight_reply is not None:
-        return ConverseResponse(say=flight_reply[:1200], do=[])
+        url = flight_assistant.take_open(req.userId or "anonymous")
+        return ConverseResponse(say=flight_reply[:1200],
+                                do=[ConverseAction(type="open_url", args={"url": url})] if url else [])
+    # trains, buses, shared cabs: no live fares exist to read, so AURA opens the right page instead of guessing
+    ground_reply = ground.handle(req.message)
+    if isinstance(ground_reply, str):
+        return ConverseResponse(say=ground_reply, do=[])
+    if ground_reply is not None:
+        return ConverseResponse(say=ground_reply.say, do=[ConverseAction(type="open_url", args={"url": ground_reply.url})])
     messages: list[dict[str, str]] = [{"role": "system", "content": SYSTEM_PROMPT}]
     if req.context:
         messages.append({"role": "system", "content": f"The user's day so far (JSON): {req.context}"})
@@ -166,7 +175,7 @@ _PROMISE = re.compile(
     r"\b(?:i(?:'ll| will| can)? (?:remind you|set (?:a |an |the |that )?(?:reminder|alarm|timer)|wake you|alert you|notify you)"
     r"|(?:reminder|alarm|timer) (?:is |has been )?set\b|i(?:'ve| have) set (?:a |an |the |that )?(?:reminder|alarm|timer))", re.I)
 # actions that really do something in the app, by the kind of claim they back up
-_DOES = {"order", "log_water", "log_meal", "took_medicine", "set_mood", "open_app", "navigate"}
+_DOES = {"order", "log_water", "log_meal", "took_medicine", "set_mood", "open_app", "navigate", "open_url"}
 
 
 def honest(say: str, actions: list[ConverseAction]) -> str:

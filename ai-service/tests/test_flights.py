@@ -255,3 +255,14 @@ def test_a_copy_arriving_while_the_first_is_still_answered_waits_for_it(fake):
                                     companion.converse(req("Direct, morning, shortest travel time.")))
     a, b = asyncio.run(both())
     assert a.say == b.say and fake["search"] == 1 and fa._session("u1") is not None
+
+
+def test_open_it_opens_the_recommended_flights_booking_site(fake):
+    from app.routers import companion
+    companion._recent.clear()
+    fake["replies"] += [dict(TRIP, direct=True, time_of_day="morning", priority="time")]
+    ask = lambda m: asyncio.run(companion.converse(companion.ConverseRequest(message=m, userId="u1")))
+    ask("flight Bangalore to Chandigarh on the 31st, direct, morning, fastest")
+    r = ask("open it")
+    assert r.say.startswith("Opening EaseMyTrip for Air India AI 811") and r.do[0].type == "open_url"
+    assert r.do[0].args["url"] == "https://www.easemytrip.com/flights.html"
