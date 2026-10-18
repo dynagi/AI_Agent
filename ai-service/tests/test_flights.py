@@ -266,3 +266,12 @@ def test_open_it_opens_the_recommended_flights_booking_site(fake):
     r = ask("open it")
     assert r.say.startswith("Opening EaseMyTrip for Air India AI 811") and r.do[0].type == "open_url"
     assert r.do[0].args["url"] == "https://www.easemytrip.com/flights.html"
+
+
+def test_a_new_flight_request_starts_fresh_even_for_the_same_trip(fake):
+    """Seen on the phone: asking again for the same route got "Okay. Tell me if you want to look again." from the
+    previous conversation."""
+    fake["replies"] += [dict(TRIP, direct=True, time_of_day="morning", priority="time"), dict(TRIP, confirm=False)]
+    say("flight from Bangalore to Chandigarh on the 31st, direct, morning, fastest")
+    r = say("find me a flight from Bangalore to Chandigarh on the 31st")
+    assert "Okay. Tell me" not in r and ("direct flight" in r or "Last time" in r or "For you" in r)

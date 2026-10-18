@@ -239,7 +239,10 @@ async function understandLocally(raw: string, nav: Nav, now: number): Promise<Ha
   if (moneyAnswer !== null) return { say: moneyAnswer };
 
   const open = t.match(/^(?:please )?(?:open|launch|kholo|chalu karo)\s+(?:the )?(.+?)(?: app)?$/);
-  if (open && !/^(my |the )?(tasks?|calendar|wellness|shopping|chat|dashboard)\b/.test(open[1])) {
+  // "open it" / "open the site" means the page AURA just talked about (a booking site), not an app: the server knows
+  // which (seen on the phone: "open it" matched "Blinkit" by sound and opened it)
+  const notAnApp = /^(it|that|this|that one|this one|there|(the |that |this )?(site|website|link|page|booking site))$/;
+  if (open && !notAnApp.test(open[1]) && !/^(my |the )?(tasks?|calendar|wellness|shopping|chat|dashboard)\b/.test(open[1])) {
     return { say: await openApp(open[1]) };
   }
   const dial = t.match(/^(?:call|dial|phone)\s+([\d\s+-]{5,})$/);

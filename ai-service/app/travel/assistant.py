@@ -307,6 +307,7 @@ SITE_URLS = [("air india express", "https://www.airindiaexpress.com"), ("air ind
              ("skyticket", "https://skyticket.com")]
 OPEN_SITE = re.compile(r"\b(open|book|go to|take me to)\b.{0,20}\b(it|that|this|site|website|link|there|one)\b|"
                        r"^\s*(book|open)( it| this| that| the site)?\s*[.!]?\s*$", re.I)
+NEW_TRIP = re.compile(r"\bfrom\b.+\bto\b", re.I)
 _links: dict[str, tuple[float, str, str, str]] = {}   # user -> (when, site, url, which flight)
 _open_now: dict[str, str] = {}                        # user -> page to open with this reply
 
@@ -387,6 +388,8 @@ async def _handle(message: str, user_id: str) -> str | None:
     if OPEN_SITE.search(message) and link and time.time() - link[0] < 15 * 60:
         _open_now[user_id] = link[2]
         return (f"Opening {link[1]} for {link[3]}. Find that flight there to book it; booking and payment are up to you.")
+    if FLIGHT_INTENT.search(message) and NEW_TRIP.search(message):
+        reset(user_id)      # a whole new request ("flight from X to Y"), not a reply to the last conversation
     s = _session(user_id)
     if s is None:
         if not FLIGHT_INTENT.search(message):
