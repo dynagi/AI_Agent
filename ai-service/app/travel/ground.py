@@ -69,8 +69,8 @@ def handle(text: str) -> Reply | str | None:
     if mode == "train":
         url = "https://www.google.com/search?q=" + quote_plus(f"trains from {frm} to {to}{on}")
         return Reply(site="Google trains", url=url,
-                     say=f"I can't see live train availability, so I won't guess it. Opening the trains from {frm} to "
-                         f"{to}{on} with their times; tickets are booked on IRCTC (or apps like ixigo and ConfirmTkt), "
+                     say=f"I can't see live train availability, so I won't guess it. Opening a search for trains from {frm} to "
+                         f"{to}{on}; tickets are booked on IRCTC (or apps like ixigo and ConfirmTkt), "
                          "and booking and payment are up to you.")
     url = "https://www.google.com/search?q=" + quote_plus(f"shared cab from {frm} to {to}")
     return Reply(site="shared cab search", url=url,
