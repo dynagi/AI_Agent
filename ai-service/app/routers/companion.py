@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from app.services.llm_service import LLMServiceError, llm_service
+import asyncio
 import time
 
 import structlog
@@ -80,19 +81,34 @@ Reply with ONLY this JSON: {"say": "<what you speak>", "do": [<0-3 actions>]}"""
 # "direct, evening, cheapest" was taken as choosing the flight, which ended the flight conversation).
 REPEAT_WINDOW_S = 20
 _recent: dict[tuple[str, str], tuple[float, "ConverseResponse"]] = {}
+_working: dict[tuple[str, str], asyncio.Future] = {}
 
 
 @router.post("/converse", response_model=ConverseResponse)
 async def converse(req: ConverseRequest) -> ConverseResponse:
-    key = (req.userId or "anonymous", req.message.strip().lower())
+    key = (req.userId or "anonymous", re.sub(r"[^\w\s]", "", req.message).strip().lower())
+    if key[0] == "anonymous":
+        return await _converse(req)
     now = time.time()
     hit = _recent.get(key)
-    if hit and now - hit[0] < REPEAT_WINDOW_S and key[0] != "anonymous":
+    if hit and now - hit[0] < REPEAT_WINDOW_S:
         return hit[1]
-    reply = await _converse(req)
+    if key in _working:                       # the first copy is still being answered (a flight search takes seconds)
+        return await asyncio.shield(_working[key])
+    future: asyncio.Future = asyncio.get_running_loop().create_future()
+    _working[key] = future
+    try:
+        reply = await _converse(req)
+        future.set_result(reply)
+    except Exception as exc:
+        future.set_exception(exc)
+        future.exception()                    # retrieved: no "never retrieved" warning when nobody else waited
+        raise
+    finally:
+        _working.pop(key, None)
     for k in [k for k, (t, _) in _recent.items() if now - t > REPEAT_WINDOW_S]:
         _recent.pop(k, None)
-    _recent[key] = (now, reply)
+    _recent[key] = (time.time(), reply)
     return reply
 
 

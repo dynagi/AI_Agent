@@ -240,3 +240,18 @@ def test_the_same_sentence_sent_twice_is_answered_once(fake):
     first = ask("direct, morning, shortest travel time")
     assert ask("direct, morning, shortest travel time") == first and fake["search"] == 1
     assert fa._session("u1") is not None and not any(e["action"] == fp.CHOICE_EVENT for e in fake["events"])
+
+
+def test_a_copy_arriving_while_the_first_is_still_answered_waits_for_it(fake):
+    from app.routers import companion
+    companion._recent.clear()
+    fake["replies"] += [dict(TRIP), {"relevant": True, "direct": True, "time_of_day": "morning", "priority": "time"},
+                        {"relevant": True, "confirm": True}]
+    req = lambda m: companion.ConverseRequest(message=m, userId="u1")
+    asyncio.run(companion.converse(req("find me a flight from Bangalore to Chandigarh on the 31st")))
+
+    async def both():
+        return await asyncio.gather(companion.converse(req("direct, morning, shortest travel time")),
+                                    companion.converse(req("Direct, morning, shortest travel time.")))
+    a, b = asyncio.run(both())
+    assert a.say == b.say and fake["search"] == 1 and fa._session("u1") is not None
