@@ -219,3 +219,11 @@ def test_short_answer_to_the_preference_question_stays_in_the_flight_conversatio
     assert "direct flight" in q
     r = say("direct, morning, cheapest")
     assert r is not None and fake["search"] == 1 and "AI 811" in r
+
+
+def test_pick_cheaper_on_a_website_than_another_flight_is_not_called_more_expensive(fake, monkeypatch):
+    """Seen on the phone: ₹9,800 on ly.com for the pick, then "the cheapest overall is ₹9,976"."""
+    fake["replies"] += [dict(TRIP, direct=True, time_of_day="morning", priority="price")]
+    monkeypatch.setitem(SITES, "tok-direct-morning", {"booking_options": [{"book_with": "ly.com", "price": 13000}]})
+    r = say("cheapest direct morning flight Bangalore to Chandigarh on the 31st")
+    assert "₹13,000 on ly.com" in r and "It's also the cheapest flight." in r and "cheapest overall" not in r

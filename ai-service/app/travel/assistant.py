@@ -248,8 +248,11 @@ async def _recommend(s: Session) -> str:
     say = (f"For you I'd pick {_who(best)}: leaves {_clock(best.depart)}, lands {_clock(best.arrive)}, "
            f"{_stops(best)}, {hours(best.minutes)}, {_sites_line(sites, best)}.")
     overall = min((f for f in s.result.flights if f.price), key=lambda f: f.price, default=best)
+    # what the pick really costs is its cheapest website, not the listed fare (seen on the phone: "the cheapest overall
+    # is ₹9,976" right after quoting ₹9,800 for the pick)
+    best_price = min([p for p in [best.price] + [x.price for x in sites] if p], default=best.price)
     if cheapest is best:
-        if overall is best or (overall.price or 0) >= (best.price or 0):
+        if overall is best or (overall.price or 0) >= (best_price or 0):
             say += " It's also the cheapest flight."
         else:
             say += (f" It's the cheapest of the flights that fit; the cheapest overall is {_who(overall)} at "

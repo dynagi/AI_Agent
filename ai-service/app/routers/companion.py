@@ -10,6 +10,8 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from app.services.llm_service import LLMServiceError, llm_service
+import structlog
+
 from app.travel import assistant as flight_assistant
 
 router = APIRouter(prefix="/ai", tags=["companion"])
@@ -75,7 +77,11 @@ Reply with ONLY this JSON: {"say": "<what you speak>", "do": [<0-3 actions>]}"""
 async def converse(req: ConverseRequest) -> ConverseResponse:
     # flights have their own assistant (live search, prices per website, preferences); it answers when the message
     # is about a flight or replies to one of its questions, and stays out of everything else
+    had_session = flight_assistant._session(req.userId or "anonymous") is not None
     flight_reply = await flight_assistant.handle(req.message, req.userId or "anonymous")
+    # which path answered (no message text): explains a flight conversation that fell through to the chat
+    structlog.get_logger().info("converse_route", route="flight" if flight_reply is not None else "chat",
+                                had_flight_session=had_session, signed_in=bool(req.userId), history=len(req.history))
     if flight_reply is not None:
         return ConverseResponse(say=flight_reply[:1200], do=[])
     messages: list[dict[str, str]] = [{"role": "system", "content": SYSTEM_PROMPT}]
