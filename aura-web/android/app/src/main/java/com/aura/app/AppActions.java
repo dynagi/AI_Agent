@@ -90,6 +90,9 @@ final class AppActions {
     private static final Pattern VOLUME_DOWN = Pattern.compile(
             "^(?:volume down|quieter|softer|turn it down|(?:decrease|reduce|lower|turn down) (?:the )?volume|make it quieter)$");
     private static final Pattern OPEN = Pattern.compile("^(?:open|launch|start) (?:the )?(.+?)(?: app)?$");
+    /** "open it", "open the site": the page AURA just talked about (a booking site), for the server; not an app name. */
+    private static final Pattern NOT_AN_APP = Pattern.compile(
+            "^(?:it|that|this|that one|this one|there|(?:the |that |this )?(?:site|website|link|page|booking site))$");
     // screens inside AURA itself: the web app answers those
     private static final Pattern AURA_SCREEN = Pattern.compile(
             "^(?:my |the )?(?:tasks?|calendar|wellness|shopping|chat|dashboard|aura|medicines?|travel|voice|settings)\\b.*");
@@ -151,7 +154,10 @@ final class AppActions {
             return true;
         }
         m = OPEN.matcher(t);
-        if (m.matches() && !AURA_SCREEN.matcher(m.group(1)).matches()) { open(ctx, m.group(1), done); return true; }
+        if (m.matches() && !AURA_SCREEN.matcher(m.group(1)).matches() && !NOT_AN_APP.matcher(m.group(1)).matches()) {
+            open(ctx, m.group(1), done);
+            return true;
+        }
         return false;
     }
 
@@ -163,7 +169,7 @@ final class AppActions {
                 || GO_BACK.matcher(t).matches() || GO_HOME.matcher(t).matches()) return true;
         if (VOLUME_UP.matcher(t).matches() || VOLUME_DOWN.matcher(t).matches() || PLAY.matcher(t).matches()
                 || OPEN_AND_PLAY.matcher(t).matches() || PLAY_ON.matcher(t).matches() || ON_APP_PLAY.matcher(t).matches()
-                || OPEN.matcher(t).matches()) return true;
+                || (OPEN.matcher(t).matches() && !NOT_AN_APP.matcher(OPEN.matcher(t).replaceFirst("$1")).matches())) return true;
         return !NOT_PLAYBACK.matcher(t).find() && t.split(" ").length <= 7
                 && (PAUSE.matcher(t).find() || NEXT.matcher(t).find() || PREVIOUS.matcher(t).find() || RESUME.matcher(t).find());
     }

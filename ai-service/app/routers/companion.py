@@ -170,6 +170,7 @@ _CLAIM = re.compile(
     r"\b(?:i(?:'ve| have)?|i just|it(?:'s| is| has been)?|your \w+(?: \w+)? (?:is|has been|are|was))\s+(?:already\s+|now\s+|just\s+)?"
     r"(?:added|ordered|placed|purchased|bought|booked|paid|sent|messaged|called|cancelled|canceled|scheduled|reserved)\b",
     re.I)
+_OPENING = re.compile(r"(?:^|[.!?]\s+)opening\b|\bi(?:'m| am) opening\b|\bi(?:'ve| have) opened\b|\bi(?:'ll| will) open\b", re.I)
 # "I'll remind you at 6", "I've set an alarm": promises nothing here can keep
 _PROMISE = re.compile(
     r"\b(?:i(?:'ll| will| can)? (?:remind you|set (?:a |an |the |that )?(?:reminder|alarm|timer)|wake you|alert you|notify you)"
@@ -186,6 +187,10 @@ def honest(say: str, actions: list[ConverseAction]) -> str:
         # there is no reminder, alarm or timer behind this assistant yet: promising one would simply not happen
         return ("I can't set reminders or alarms yet, so I won't promise that. "
                 "Your phone's clock app can do it, and I can open it for you.")
+    if _OPENING.search(say) and not any(a.type in ("open_url", "open_app", "navigate") for a in actions):
+        # seen on the phone: "Opening the flights from Delhi to Goa…" with nothing opened
+        return ("I haven't opened anything. Tell me what you're looking for, like \"find a flight from Delhi to Goa "
+                "on the 27th\" or \"bus from Bangalore to Chennai\", and I'll find it.")
     if not _CLAIM.search(say):
         return say
     if any(a.type in _DOES for a in actions):

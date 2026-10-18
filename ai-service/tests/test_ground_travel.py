@@ -25,3 +25,11 @@ def test_chat_route_returns_an_open_url_action():
     companion._recent.clear()
     r = asyncio.run(companion.converse(companion.ConverseRequest(message="bus from Hyderabad to Vijayawada", userId="u9")))
     assert r.do and r.do[0].type == "open_url" and "hyderabad-to-vijayawada" in r.do[0].args["url"]
+
+
+def test_chat_cannot_claim_to_open_something_it_isnt_opening():
+    """Seen on the phone: the general chat said "Opening the flights from Delhi to Goa..." with nothing opened."""
+    say = "I can't see live flight prices. Opening the flights from Delhi to Goa on 27th October, sorted by price."
+    assert companion.honest(say, []).startswith("I haven't opened anything")
+    url = companion.ConverseAction(type="open_url", args={"url": "https://www.redbus.in"})
+    assert companion.honest("Opening redBus for you.", [url]) == "Opening redBus for you."
