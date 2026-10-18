@@ -15,6 +15,8 @@ be unknown.
 """
 from __future__ import annotations
 
+import asyncio
+
 import re
 import time
 from dataclasses import dataclass, field
@@ -244,7 +246,8 @@ async def _recommend(s: Session) -> str:
                 f"{s.trip.get('destination_city') or s.result.destination} on {_day(s.result.date)}. Want to try another day?")
     best = s.ranked[0].flight
     cheapest = min((f.flight for f in s.ranked), key=lambda f: f.price or 1e12)
-    sites = await _sites(s, best)
+    # both lookups at once: one after the other made the spoken answer miss the phone's time limit
+    sites, _ = await asyncio.gather(_sites(s, best), _sites(s, cheapest))
     say = (f"For you I'd pick {_who(best)}: leaves {_clock(best.depart)}, lands {_clock(best.arrive)}, "
            f"{_stops(best)}, {hours(best.minutes)}, {_sites_line(sites, best)}.")
     overall = min((f for f in s.result.flights if f.price), key=lambda f: f.price, default=best)

@@ -81,7 +81,7 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
     private boolean paused;
     private long lastWake;
 
-    private static final long REPLY_TIMEOUT_MS = 30000;
+    private static final long REPLY_TIMEOUT_MS = 50000;   // a live flight search with per-site prices takes a while
     /** How long the app's own logic gets to answer before the service asks the server itself (see askServer). */
     private static final long WEB_GRACE_MS = 4000;
     /** After handing a command to the app (brought forward to wake it), how long its answer may take. */
