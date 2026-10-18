@@ -76,6 +76,9 @@ def eligible(flights: list[Flight], prefs: FlightPrefs) -> tuple[list[Flight], l
     notes = []
     for label, keep in (
         ("direct", lambda f: f.stops == 0 if prefs.direct else True),
+        # a departure time the user asked for ("morning") is a requirement, not a tie-breaker: "cheapest" then means
+        # the cheapest morning flight (seen on the phone: a cheaper night flight won)
+        ("time", lambda f: in_window(f.depart_hour, prefs) is not False),
         ("duration", lambda f: prefs.max_hours is None or (f.minutes or 0) <= prefs.max_hours * 60),
         ("budget", lambda f: prefs.budget is None or (f.price or 0) <= prefs.budget),
         ("avoid", lambda f: not prefs.avoid_airline or prefs.avoid_airline.lower() not in f.airline.lower()),
@@ -91,6 +94,8 @@ def eligible(flights: list[Flight], prefs: FlightPrefs) -> tuple[list[Flight], l
 def _relaxed(label: str, prefs: FlightPrefs) -> str:
     if label == "direct":
         return "There's no direct flight that day, so these include a stop."
+    if label == "time":
+        return f"Nothing leaves in the {prefs.time_of_day or 'time you asked for'}, so I've included other times."
     if label == "duration":
         return f"No flight is under {prefs.max_hours:g} hours, so I've included longer ones."
     if label == "budget":

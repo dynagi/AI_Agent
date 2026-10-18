@@ -134,7 +134,7 @@ def test_full_conversation_asks_then_recommends_and_compares_sites(fake):
     assert fake["search"] == 1
     assert "Air India AI 811" in r and "9:05 am" in r and "direct" in r
     assert "₹15,890 on EaseMyTrip" in r and "airline's own site is ₹16,200" in r      # cheapest site for that flight
-    assert "more than the cheapest flight" in r                                          # says what the extra buys
+    assert "the cheapest overall is SpiceJet SG 1" in r                                  # says what the extra buys
     assert "Prices are high for this date" in r
     assert fake["sites"] <= 2                                                            # searches kept to a minimum
 
@@ -194,7 +194,7 @@ def test_details_are_given_even_if_the_model_repeats_old_preferences(fake):
     fake["replies"] += [dict(TRIP, **prefs), dict({"relevant": True, "wants_details": True}, **prefs)]
     say("flight Bangalore to Chandigarh on the 31st, direct, morning, fastest")
     d = say("show me the details")
-    assert d.startswith("Option 1:") and "Option 2:" in d and "1st checked bag free" in d
+    assert d.startswith("Option 1:") and "AI 811" in d and "1st checked bag free" in d   # the one direct morning flight
 
 
 def test_cheapest_of_the_fitting_flights_is_not_called_the_cheapest(fake):
@@ -209,3 +209,13 @@ def test_every_question_ends_with_a_question_mark_so_aura_keeps_listening(fake):
     fa.reset("u1")
     assert say("flight from Bangalore to Chandigarh on the 31st").endswith("?")
     assert fa.PREFS_QUESTION.endswith("?")
+
+
+def test_short_answer_to_the_preference_question_stays_in_the_flight_conversation(fake):
+    """Seen on the phone: "direct, morning, cheapest" after AURA's question went to the general chat, because the
+    model called it unrelated."""
+    fake["replies"] += [dict(TRIP), {"relevant": False}]
+    q = say("find me a flight from Bangalore to Chandigarh on the 31st")
+    assert "direct flight" in q
+    r = say("direct, morning, cheapest")
+    assert r is not None and fake["search"] == 1 and "AI 811" in r

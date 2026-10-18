@@ -337,6 +337,13 @@ async def handle(message: str, user_id: str) -> str | None:
         s = _sessions[user_id] = Session()
     s.touched = time.time()
     x = await read(message, s)
+    # a short answer to AURA's own question ("direct, morning, cheapest") is the conversation going on, even when the
+    # model calls it unrelated (seen on the phone: it went to the general chat instead)
+    rules = _rules(message)
+    answers = {k: v for k, v in rules.items() if k != "relevant" and v not in (None, "", False)}
+    if answers:
+        x = {**{k: v for k, v in rules.items() if k != "relevant"}, **{k: v for k, v in x.items() if v is not None}}
+        x["relevant"] = True
     if x.get("relevant") is False and not FLIGHT_INTENT.search(message) and x.get("choose") is None:
         reset(user_id)                      # the user moved on to something else
         return None
