@@ -80,6 +80,9 @@ def _fallback_intent(text: str) -> dict:
         if not usual:
             for part in re.split(r",|\band\b|\n", body):
                 part = re.sub(r"\b(to|in)\s+(my\s+)?cart\b", "", part).strip(" .")
+                # "a burger for me" -> "burger" (filler words are not part of the item)
+                part = re.sub(r"^(?:(?:a|an|some|me|us|one)\s+)+", "", part)
+                part = re.sub(r"\s+(?:for (?:me|us|myself)|please|now|today|right now|asap)$", "", part).strip(" .")
                 if not part:
                     continue
                 q = re.match(r"^(\d+)\s*(?:x|packets? of|packs? of|kg of|of)?\s*(.+)$", part) or \

@@ -983,6 +983,13 @@ async def next_step(req: StepRequest) -> StepAction:
             # opened by tapping the dish card, not its ADD: handled like an ADD, so the user is asked first
             action = StepAction(action="wait", itemIndex=idx, targetText=_tap("add", idx, req.items[idx].name.lower()),
                                 reason="a customisation sheet is open: asking you before adding", source="guard")
+        el = _element(req, action.elementId) if action.action == "click" else None
+        el_txt = f"{el.text or el.label or ''}" if el is not None else ""
+        if el is not None and not _parse_tap(action.targetText) and re.match(r"^\s*add\b", el_txt, re.I) \
+                and not _SHEET_CONFIRM.match(el_txt):
+            # an "ADD" with an icon or price on it ("ADD +", "ADD ₹59") is still an ADD: tagged, so it is checked
+            # against the item and verified (seen on the phone: an unrelated burger wrap was tapped untagged)
+            action.targetText = _tap("add", idx, _product(el))
         tap = _parse_tap(action.targetText) if action.action == "click" else None
         if tap and tap[0] == "add" and tap[2] and not _related(tap[2], req.items[idx]):
             action = StepAction(action="wait", itemIndex=idx, source="guard",

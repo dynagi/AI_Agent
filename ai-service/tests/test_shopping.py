@@ -176,7 +176,10 @@ def test_coordinator_routes_shopping_commands():
 
 
 # ---------------------------------------------------------------- retraining
-def _with_runtime(tmp_path):
+def _with_runtime(tmp_path, monkeypatch=None):
+    if monkeypatch is not None:
+        # tests never read the real Supabase project (seen: these read ~5,400 live rows when .env pointed at it)
+        monkeypatch.setattr(shopping_history, "_use_supabase", lambda *a, **k: False)
     p = get_predictor()
     saved = (p.model, p.meta, p.runtime_dir)
     p.runtime_dir = tmp_path
@@ -197,7 +200,7 @@ def _dog_food_orders():
 
 def test_retrain_is_checked_on_recent_purchases_before_use(tmp_path, monkeypatch):
     """A candidate that doesn't predict the held-out recent weeks better is NOT used."""
-    p, saved = _with_runtime(tmp_path)
+    p, saved = _with_runtime(tmp_path, monkeypatch)
     try:
         _dog_food_orders()
         monkeypatch.setattr(sp, "_score", lambda m, rows, cats: {"logloss": 0.5, "precisionAt3": 0.5})
@@ -210,7 +213,7 @@ def test_retrain_is_checked_on_recent_purchases_before_use(tmp_path, monkeypatch
 
 
 def test_better_retrain_is_promoted_with_backup(tmp_path, monkeypatch):
-    p, saved = _with_runtime(tmp_path)
+    p, saved = _with_runtime(tmp_path, monkeypatch)
     try:
         _dog_food_orders()
         (tmp_path / "shopping_finetuned.txt").write_text("previous model")
@@ -927,8 +930,12 @@ def test_history_reading_gives_up_when_stuck_so_the_order_goes_ahead():
     assert not hr._stuck(sb.StepRequest(mode="app", phase="history", store="Blinkit", url="Account", step=8, ordersRead=2), other)
 
 
-def test_restaurant_food_goes_to_food_delivery_apps_not_grocery_stores(memory_store):
+def test_restaurant_food_goes_to_food_delivery_apps_not_grocery_stores(memory_store, monkeypatch):
     from app.ml.shopping_catalog import is_prepared_food
+
+    async def no_ai(*a, **k):      # no network in tests: the rule-based reading is what is checked here
+        raise sa.LLMServiceError("AI unavailable in tests")
+    monkeypatch.setattr(sa.llm_service, "chat_json", no_ai)
     assert is_prepared_food("pizza") and is_prepared_food("a chicken burger") and is_prepared_food("veg biryani")
     assert not is_prepared_food("pizza base") and not is_prepared_food("burger buns") and not is_prepared_food("milk")
 

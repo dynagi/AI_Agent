@@ -208,3 +208,22 @@ def test_ai_cannot_add_an_unrelated_suggestion_or_confirm_a_sheet_itself(monkeyp
 
 def test_dish_name_read_aloud_without_separators():
     assert sb._dish("· bk veg pizza puff.") == "Bk Veg Pizza Puff"
+
+
+def test_an_add_button_with_an_icon_or_price_is_still_checked(monkeypatch):
+    """Seen on the phone: asked for masala dosa, the AI tapped "ADD ₹" on a burger wrap; untagged, nothing checked it."""
+    replies = []
+
+    async def chat_json(*a, **k):
+        return replies.pop(0)
+    monkeypatch.setattr(sb.llm_service, "chat_json", chat_json)
+    monkeypatch.setattr(sb, "fast_step", lambda r: None)
+    req = sb.StepRequest(mode="app", phase="cart", store="Zomato", url="Search", step=2, items=[sb.CartItem(name="masala dosa")],
+                         elements=[E(id="n26", tag="Button", text="ADD ", context="Chipotle Veg Fingers Burger Wrap ₹129"),
+                                   E(id="n27", tag="Button", text="ADD ₹", context="Mysore Masala Dosa ₹110")])
+    replies.append({"action": "click", "elementId": "n26", "reason": "add it"})
+    a = asyncio.run(sb.next_step(req))
+    assert a.action == "wait" and "isn't masala dosa" in a.reason
+    replies.append({"action": "click", "elementId": "n27", "reason": "add the dosa"})
+    a = asyncio.run(sb.next_step(req))
+    assert a.action == "click" and a.targetText.startswith("add#0@") and "dosa" in a.targetText
