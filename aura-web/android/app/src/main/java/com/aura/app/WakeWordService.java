@@ -50,6 +50,11 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
     private static final String GRAMMAR = "[\"hey aura\", \"hey ora\", \"hey aurora\", \"hey laura\", "
             + "\"hang up\", \"end the call\", \"end call\", \"cut the call\", \"cut call\", \"disconnect\", \"[unk]\"]";
     private long callArmedUntil;
+    private boolean quiet;   // this session runs during an internet call: replies on screen, not aloud
+
+    private boolean internetCall() {
+        return audioManager != null && audioManager.getMode() == android.media.AudioManager.MODE_IN_COMMUNICATION;
+    }
     private static final long REARM_MS = 2500;
 
     static volatile WakeWordService instance;
@@ -284,8 +289,7 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
                 if (c.getClientAudioSource() == android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION && c.isClientSilenced()) silenced = true;
             }
         }
-        String why = WakeGate.micBlockedReason(mode == android.media.AudioManager.MODE_IN_CALL,
-                mode == android.media.AudioManager.MODE_IN_COMMUNICATION, silenced);
+        String why = WakeGate.micBlockedReason(mode == android.media.AudioManager.MODE_IN_CALL, false, silenced);
         if (inSession) return;   // an assistant session reports its own microphone problems
         boolean blocked = why != null && settingOn(this);
         if (blocked == micBlocked) return;
@@ -378,7 +382,11 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
 
     private void onWake() {
         if (inSession || destroyed || !settingOn(this)) return;
-        if (inCall()) { callSession(); return; }
+        if (inCall() && !internetCall()) { callSession(); return; }   // SIM call: only "hang up" can be heard
+        // an internet call (Meet, WhatsApp): Android still lets AURA hear (checked: its stream is not silenced), so
+        // commands work; answers are shown, not spoken, so the people on the call don't hear AURA
+        quiet = inCall();
+        if (quiet) Log.i(TAG, "session during an internet call: answers on screen only");
         inSession = true;
         paused = true;          // free the microphone for the command recogniser
         releaseMic();
@@ -727,7 +735,7 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
     }
 
     private void speak(String text, Runnable done) {
-        if (tts == null || !ttsReady) {
+        if (quiet || tts == null || !ttsReady) {   // quiet: on a call, the reply is read on screen
             if (done != null) ui.postDelayed(done, Math.min(6000, 1200 + text.length() * 45L));
             return;
         }
@@ -742,6 +750,7 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
     /** Closes the overlay and goes back to waiting for the wake phrase. Also the ✕ button. */
     private void endSession(long delayMs) {
         AuraWakePlugin.handOverDone();
+        quiet = false;
         if (cartAnswer != null) {   // closed (✕) before answering the cart's question
             CartAnswer done = cartAnswer;
             cartAnswer = null;
