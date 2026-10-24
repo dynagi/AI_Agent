@@ -86,6 +86,7 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
     private final Handler ui = new Handler(Looper.getMainLooper());
     private Model model;
     private SpeechService speech;
+    private TeeRecognizer tee;   // the wake recogniser; on a call it also hears the command
     private boolean paused;
     private long lastWake;
 
@@ -316,7 +317,8 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
             return;
         }
         try {
-            Recognizer recognizer = new Recognizer(model, SAMPLE_RATE, GRAMMAR);
+            TeeRecognizer recognizer = new TeeRecognizer(model, SAMPLE_RATE, GRAMMAR);
+            tee = recognizer;
             recognizer.setWords(true);   // per-word confidence, so ordinary speech forced onto the phrase can be told apart
             speech = new SpeechService(recognizer, SAMPLE_RATE);
             speech.startListening(this);
@@ -331,6 +333,7 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
             speech.stop();
             speech.shutdown();
             speech = null;
+            tee = null;
         }
     }
 
@@ -386,10 +389,12 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
         // an internet call (Meet, WhatsApp): Android still lets AURA hear (checked: its stream is not silenced), so
         // commands work; answers are shown, not spoken, so the people on the call don't hear AURA
         quiet = inCall();
-        if (quiet) Log.i(TAG, "session during an internet call: answers on screen only");
+        if (quiet) Log.i(TAG, "session during an internet call: commands from the same microphone stream, answers on screen");
         inSession = true;
-        paused = true;          // free the microphone for the command recogniser
-        releaseMic();
+        if (!quiet) {
+            paused = true;          // free the microphone for the command recogniser
+            releaseMic();
+        }
         state = "paused";
         turns = 0;
         wakeServer();
@@ -541,7 +546,26 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
         }, "aura-wake-server").start();
     }
 
+    private static final long CALL_COMMAND_MS = 9000;
+
     private void listenForCommand() {
+        if (quiet && tee != null && speech != null) {
+            // on a call: the phone's speech recognition only gets silence, so the command comes from AURA's own
+            // still-open stream (recognised on the phone by the offline Vosk model)
+            overlay.setStatus("Listening… (on a call)", true);
+            overlay.setBody("", false);
+            final int id = requestId;
+            try {
+                tee.listenForCommand(CALL_COMMAND_MS, text -> ui.post(() -> {
+                    if (!inSession || requestId != id) return;
+                    Log.i(TAG, "command heard on the call stream: " + (text.isEmpty() ? "nothing" : text.split("\\s+").length + " words"));
+                    onDone(text, text.isEmpty() ? "I didn't catch that. Say \"Hey Aura\" and try again." : null);
+                }));
+            } catch (Exception e) {
+                answer("I couldn't listen during this call.", false, false);
+            }
+            return;
+        }
         if (!SpeechCapture.available(this)) {
             answer("Speech recognition isn't available on this phone.", false, false);
             return;
@@ -751,6 +775,7 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
     private void endSession(long delayMs) {
         AuraWakePlugin.handOverDone();
         quiet = false;
+        if (tee != null) tee.cancelCommand();
         if (cartAnswer != null) {   // closed (✕) before answering the cart's question
             CartAnswer done = cartAnswer;
             cartAnswer = null;
