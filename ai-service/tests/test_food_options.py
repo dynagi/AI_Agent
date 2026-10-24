@@ -243,3 +243,9 @@ def test_addition_is_recognised_when_the_recorded_name_has_a_stray_symbol():
     assert sb._added_proof(req, product)
     a = sb.fast_step(req)
     assert a.action == "item_done" and a.itemOk is True
+
+
+def test_dish_name_drops_app_icon_glyphs():
+    """Seen on the phone: "Pick the options for Veg Fried Rice  in Zomato"."""
+    assert sb._dish("veg fried rice  customisable") == "Veg Fried Rice"
+    assert sb._dish("paneer tikka (8 pcs) · customisable") == "Paneer Tikka (8 Pcs)"

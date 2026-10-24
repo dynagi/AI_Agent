@@ -556,7 +556,10 @@ def _since_add(req: StepRequest, idx: int):
 
 
 def _dish(product: str) -> str:
-    name = re.split(r"\s+[·?•|]\s+|\s+customi[sz]able", product.strip(" ·?•|.-"))[0].strip(" ·?•|.-")
+    name = re.split(r"\s+[·?•|]\s+|\s+customi[sz]able", product.strip(" ·?•|.-"))[0]
+    # app icon glyphs (private-use characters) and stray symbols are not part of the name (seen: "Veg Fried Rice □")
+    name = re.sub(r"[^\w\s()&'.,-]", " ", name)
+    name = re.sub(r"\s+", " ", name).strip(" .,-")
     return name.title() if name else "This dish"
 
 
