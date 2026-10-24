@@ -227,3 +227,19 @@ def test_an_add_button_with_an_icon_or_price_is_still_checked(monkeypatch):
     replies.append({"action": "click", "elementId": "n27", "reason": "add the dosa"})
     a = asyncio.run(sb.next_step(req))
     assert a.action == "click" and a.targetText.startswith("add#0@") and "dosa" in a.targetText
+
+
+def test_addition_is_recognised_when_the_recorded_name_has_a_stray_symbol():
+    """Seen on the phone: Zomato showed "1 item added" and a stepper on Paneer Biryani, but the ADD had been recorded as
+    "paneer biryani ·", which matched nothing, so AURA said "0/1 added"."""
+    product = "paneer biryani ·"
+    screen = [E(id="n13", tag="ViewGroup", text="1 item added Continue"),
+              E(id="n27", tag="ImageView", text="Paneer Biryani", label="Paneer Biryani",
+                context="Paneer Biryani Highly reordered ₹220   Paneer Biryani  1 "),
+              E(id="n30", tag="View", text="1", label="1", context="Paneer Biryani  1 "),
+              E(id="n35", tag="View", text="ADD", label="ADD", context="Paneer Roll ₹65 ₹130 50% OFF Try New Deal ADD")]
+    req = sb.StepRequest(mode="app", phase="cart", store="Zomato", url="Menu", step=10, items=[sb.CartItem(name="paneer biryani")],
+                         history=[sb.StepRecord(action="click", target=f"add#0@{product}", result="clicked")], elements=screen)
+    assert sb._added_proof(req, product)
+    a = sb.fast_step(req)
+    assert a.action == "item_done" and a.itemOk is True

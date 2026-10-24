@@ -418,9 +418,20 @@ def _best_add(req: StepRequest, item: CartItem) -> PageElement | None:
     return best if best_score >= 2 else None
 
 
+def _pkey(product: str) -> str:
+    """A product name for matching: letters and digits only (seen: "paneer biryani ·" never matched "Paneer Biryani",
+    so a real addition was reported as failed)."""
+    return " ".join(re.findall(r"[a-z0-9]+", (product or "").lower()))[:25]
+
+
+def _is_product(e: PageElement, product: str) -> bool:
+    key = _pkey(product)
+    return bool(key) and _pkey(_product(e)).startswith(key)
+
+
 def _plus_for(req: StepRequest, product: str) -> PageElement | None:
     return next((e for e in req.elements if (_PLUS.match((e.text or "").strip()) or _PLUS.match((e.label or "").strip()))
-                 and product and _product(e).startswith(product[:25])), None)
+                 and _is_product(e, product)), None)
 
 
 def _tap(kind: str, idx: int, product: str) -> str:
@@ -434,15 +445,13 @@ def _parse_tap(target: str | None) -> tuple[str, int, str] | None:
 
 
 def _visible(req: StepRequest, product: str) -> bool:
-    key = product[:25]
-    return bool(key) and any(_product(e).startswith(key) for e in req.elements)
+    return any(_is_product(e, product) for e in req.elements)
 
 
 def _add_gone(req: StepRequest, product: str) -> bool:
     """On this screen, the product is shown but its ADD button isn't: a quantity stepper replaced it.
     False when the product isn't on screen at all (another page, a popup on top): we can't tell from here."""
-    key = product[:25]
-    return _visible(req, product) and not any(_is_add(e) and _product(e).startswith(key) for e in req.elements)
+    return _visible(req, product) and not any(_is_add(e) and _is_product(e, product) for e in req.elements)
 
 
 def _added_proof(req: StepRequest, product: str) -> bool:
@@ -457,8 +466,7 @@ _STEPPER = re.compile(r"[−\-–]\s*\d+\s*\+")
 
 def _stepper_for(req: StepRequest, product: str) -> bool:
     """A quantity stepper ("− 1 +", or the count on its own) where this product's ADD was."""
-    key = product[:25]
-    return bool(key) and any(_product(e).startswith(key) and (re.fullmatch(r"\d{1,2}", (e.text or "").strip())
+    return any(_is_product(e, product) and (re.fullmatch(r"\d{1,2}", (e.text or "").strip())
                                                               or _STEPPER.search(f"{e.text or ''} {e.context or ''}"))
                              for e in req.elements)
 

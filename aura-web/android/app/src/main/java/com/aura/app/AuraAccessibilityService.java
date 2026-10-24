@@ -739,7 +739,10 @@ public class AuraAccessibilityService extends AccessibilityService implements Ca
             android.util.Log.i("AuraCartRead", "" + els.length() + " elements");
             for (int i = 0; i < els.length(); i++) {
                 String t = els.getJSONObject(i).optString("text");
-                if (t.toLowerCase(java.util.Locale.ROOT).startsWith("add")) android.util.Log.i("AuraCartRead", "element " + t);
+                JSONObject e = els.getJSONObject(i);
+                android.util.Log.i("AuraCartRead", "element " + e.optString("id") + " [" + e.optString("tag") + "] "
+                        + t + (e.has("label") ? " {label: " + e.optString("label") + "}" : "")
+                        + (e.has("context") ? " {context: " + clip(e.optString("context"), 90) + "}" : ""));
             }
         } catch (JSONException ignored) {
         }
