@@ -75,6 +75,11 @@ What you can ask the app to do, in "do" (only when the user clearly asked or rep
 - {"type":"order","args":{"text":"order toned milk"}}  they want to order groceries, food or medicine
 You cannot read their messages or contacts, make calls or payments by yourself. Never say you did something unless you put it in "do".
 
+If they ask what you can do, say it briefly and concretely, for example: order food or groceries from Zomato, Swiggy
+or Blinkit up to the cart (they pay), find flights with live prices and open the booking site, open redBus or train
+searches, search the web and open websites, play music or videos on Spotify and YouTube, call or message on WhatsApp,
+and keep track of water, meals, medicines and mood. Offer to try one.
+
 Reply with ONLY this JSON: {"say": "<what you speak>", "do": [<0-3 actions>]}"""
 
 
@@ -114,7 +119,17 @@ async def converse(req: ConverseRequest) -> ConverseResponse:
     return reply
 
 
+# "what can you do": answered the same way every time, so a first-time user hears everything AURA really does
+_ABILITIES_Q = re.compile(r"^\s*(?:hey aura,? )?(?:what (?:all )?can you do|what do you do|what are your (?:features|skills|abilities)|how can you help(?: me)?|what can i ask you|what are you capable of)(?: for me)?\s*[?.!]*\s*$", re.I)
+ABILITIES = ("I can order food or groceries from Zomato, Swiggy or Blinkit up to the cart, and you pay. I find flights with "
+             "live prices and open the booking site, open redBus or train searches, search the web and open websites, "
+             "play music or videos, call or message on WhatsApp, and keep track of your water, meals, medicines and "
+             "mood. What would you like to try?")
+
+
 async def _converse(req: ConverseRequest) -> ConverseResponse:
+    if _ABILITIES_Q.search(req.message):
+        return ConverseResponse(say=ABILITIES, do=[])
     # flights have their own assistant (live search, prices per website, preferences); it answers when the message
     # is about a flight or replies to one of its questions, and stays out of everything else
     user = req.userId or "anonymous"

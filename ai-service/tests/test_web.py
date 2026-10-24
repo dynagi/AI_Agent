@@ -114,3 +114,9 @@ def test_unsafe_links_are_refused():
     assert links.safe("https://www.videolan.org/vlc/")
     assert not links.safe("http://example.com") and not links.safe("https://x.com/setup.exe")
     assert not links.safe("intent://evil") and not links.safe("javascript:alert(1)")
+
+
+def test_what_can_you_do_lists_the_real_abilities(fake):
+    r = ask("what can you do?")
+    assert "Zomato" in r.say and "flights" in r.say and "websites" in r.say and r.say.endswith("?")
+    assert not companion._ABILITIES_Q.search("what can you do about my sleep")   # a real question: the chat answers it
