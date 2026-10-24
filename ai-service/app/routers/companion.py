@@ -17,6 +17,7 @@ import structlog
 
 from app.travel import assistant as flight_assistant
 from app.travel import ground
+from app.assistant import links, web
 
 router = APIRouter(prefix="/ai", tags=["companion"])
 
@@ -116,21 +117,31 @@ async def converse(req: ConverseRequest) -> ConverseResponse:
 async def _converse(req: ConverseRequest) -> ConverseResponse:
     # flights have their own assistant (live search, prices per website, preferences); it answers when the message
     # is about a flight or replies to one of its questions, and stays out of everything else
+    user = req.userId or "anonymous"
+    # "open it", "open the second one", "the website you recommended earlier": what AURA last pointed to
+    opened = links.open_request(req.message, user)
+    if opened is not None:
+        say, url = opened
+        return ConverseResponse(say=say, do=[ConverseAction(type="open_url", args={"url": url})] if url else [])
     had_session = flight_assistant._session(req.userId or "anonymous") is not None
     flight_reply = await flight_assistant.handle(req.message, req.userId or "anonymous")
     # which path answered (no message text): explains a flight conversation that fell through to the chat
     structlog.get_logger().info("converse_route", route="flight" if flight_reply is not None else "chat",
                                 had_flight_session=had_session, signed_in=bool(req.userId), history=len(req.history))
     if flight_reply is not None:
-        url = flight_assistant.take_open(req.userId or "anonymous")
-        return ConverseResponse(say=flight_reply[:1200],
-                                do=[ConverseAction(type="open_url", args={"url": url})] if url else [])
+        return ConverseResponse(say=flight_reply[:1200], do=[])
     # trains, buses, shared cabs: no live fares exist to read, so AURA opens the right page instead of guessing
     ground_reply = ground.handle(req.message)
     if isinstance(ground_reply, str):
         return ConverseResponse(say=ground_reply, do=[])
     if ground_reply is not None:
+        links.remember(user, [links.Link(site=ground_reply.site, url=ground_reply.url)])
         return ConverseResponse(say=ground_reply.say, do=[ConverseAction(type="open_url", args={"url": ground_reply.url})])
+    # searching the web and opening websites, from real search results
+    web_reply = await web.handle(req.message, user)
+    if web_reply is not None:
+        return ConverseResponse(say=web_reply.say[:1200],
+                                do=[ConverseAction(type="open_url", args={"url": web_reply.url})] if web_reply.url else [])
     messages: list[dict[str, str]] = [{"role": "system", "content": SYSTEM_PROMPT}]
     if req.context:
         messages.append({"role": "system", "content": f"The user's day so far (JSON): {req.context}"})

@@ -188,9 +188,11 @@ def _restore(p, saved):
 
 
 def _dog_food_orders():
+    # every 8 days over the last ~3 months, relative to today: the check holds out the most recent weeks, so fixed
+    # dates stop working once they are older than that (these tests broke on 24 October for that reason)
     asyncio.run(shopping_history.add_events(DEMO, [
-        {"timestamp": f"2026-{m:02d}-{d:02d}T10:00:00", "action": "order", "name": "dog food", "app": "Amazon",
-         "source": "store_history"} for m in (7, 8, 9) for d in (2, 10, 18, 26)]))
+        {"timestamp": _days_ago(n), "action": "order", "name": "dog food", "app": "Amazon",
+         "source": "store_history"} for n in range(2, 96, 8)]))
 
 
 def test_retrain_is_checked_on_recent_purchases_before_use(tmp_path, monkeypatch):

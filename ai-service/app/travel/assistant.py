@@ -27,6 +27,7 @@ import structlog
 from app.services.llm_service import LLMServiceError, llm_service
 from app.services.travel_history import TravelHistoryError, travel_history
 from app.services.travel_service import TravelServiceError
+from app.assistant import links
 from app.travel import flights as live
 from app.travel.preferences import (CHOICE_EVENT, PREF_EVENT, Fit, FlightPrefs, describe, eligible, hours, learned,
                                     part_of_day, score, why_better)
@@ -305,11 +306,8 @@ SITE_URLS = [("air india express", "https://www.airindiaexpress.com"), ("air ind
              ("cleartrip", "https://www.cleartrip.com/flights"), ("ixigo", "https://www.ixigo.com/flights"),
              ("yatra", "https://www.yatra.com/flights"), ("ly.com", "https://www.ly.com"),
              ("skyticket", "https://skyticket.com")]
-OPEN_SITE = re.compile(r"\b(open|book|go to|take me to)\b.{0,20}\b(it|that|this|site|website|link|there|one)\b|"
-                       r"^\s*(book|open)( it| this| that| the site)?\s*[.!]?\s*$", re.I)
 NEW_TRIP = re.compile(r"\bfrom\b.+\bto\b", re.I)
-_links: dict[str, tuple[float, str, str, str]] = {}   # user -> (when, site, url, which flight)
-_open_now: dict[str, str] = {}                        # user -> page to open with this reply
+BOOK_NOTE = "Find that flight there to book it; booking and payment are up to you."
 
 
 def site_url(site: str, result: live.SearchResult | None) -> str:
@@ -327,11 +325,6 @@ def _keep_link(s: Session, f: live.Flight, sites: list) -> None:
     s.link = (site, site_url(site if sites else "", s.result), f"{f.airline} {f.flight_numbers}")
 
 
-def take_open(user_id: str) -> str | None:
-    """The page to open on the phone with the reply just given (after "open it"), once."""
-    return _open_now.pop(user_id, None)
-
-
 async def _choose(s: Session, user_id: str, n: int) -> str:
     if not 1 <= n <= len(s.ranked):
         return f"I only have {len(s.ranked)} options. Which one would you like?"
@@ -347,7 +340,7 @@ async def _choose(s: Session, user_id: str, n: int) -> str:
         else f"It's {_rupees(f.price)} on Google Flights"
     bag = f" Baggage: {', '.join(sites[0].baggage)}." if sites and sites[0].baggage else ""
     _keep_link(s, f, sites)
-    _links[user_id] = (time.time(), *s.link)
+    links.remember(user_id, [links.Link(site=s.link[0], url=s.link[1], label=s.link[2], note=BOOK_NOTE)])
     return (f"Noted: {f.airline} {f.flight_numbers} on {_day(s.result.date)}, {_clock(f.depart)} from {s.result.origin}. "
             f"{where}.{bag} I can't book or pay for it myself. Say \"open it\" and I'll open {s.link[0]}, "
             "then pick this flight there.")
@@ -377,17 +370,13 @@ async def handle(message: str, user_id: str) -> str | None:
     """AURA's reply when the message is about flights (or answers a flight question); None when it isn't."""
     reply = await _handle(message, user_id)
     s = _session(user_id)
-    if s is not None and getattr(s, "link", None):
-        _links[user_id] = (time.time(), *s.link)
+    if s is not None and s.link:
+        # "open it" / "book it" then opens this flight's booking site (app/assistant/links.py)
+        links.remember(user_id, [links.Link(site=s.link[0], url=s.link[1], label=s.link[2], note=BOOK_NOTE)])
     return reply
 
 
 async def _handle(message: str, user_id: str) -> str | None:
-    # "open it" / "book it": the booking site of the flight AURA recommended or the user chose
-    link = _links.get(user_id)
-    if OPEN_SITE.search(message) and link and time.time() - link[0] < 15 * 60:
-        _open_now[user_id] = link[2]
-        return (f"Opening {link[1]} for {link[3]}. Find that flight there to book it; booking and payment are up to you.")
     if FLIGHT_INTENT.search(message) and NEW_TRIP.search(message):
         reset(user_id)      # a whole new request ("flight from X to Y"), not a reply to the last conversation
     s = _session(user_id)

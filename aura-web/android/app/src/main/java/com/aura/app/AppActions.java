@@ -90,6 +90,8 @@ final class AppActions {
     private static final Pattern VOLUME_DOWN = Pattern.compile(
             "^(?:volume down|quieter|softer|turn it down|(?:decrease|reduce|lower|turn down) (?:the )?volume|make it quieter)$");
     private static final Pattern OPEN = Pattern.compile("^(?:open|launch|start) (?:the )?(.+?)(?: app)?$");
+    private static final Pattern A_WEBSITE = Pattern.compile(
+            "\\b(?:web ?site|site|home ?page|docs|documentation|download page|official)\\b|\\.(?:com|in|org|net|io|co|ai|dev)\\b");
     /** "open it", "open the site": the page AURA just talked about (a booking site), for the server; not an app name. */
     private static final Pattern NOT_AN_APP = Pattern.compile(
             "^(?:it|that|this|that one|this one|there|(?:the |that |this )?(?:site|website|link|page|booking site))$");
@@ -155,6 +157,9 @@ final class AppActions {
         }
         m = OPEN.matcher(t);
         if (m.matches() && !AURA_SCREEN.matcher(m.group(1)).matches() && !NOT_AN_APP.matcher(m.group(1)).matches()) {
+            // a website ("the Zerodha website", "python.org", "the pandas docs") or a name no installed app has:
+            // the server finds the real site and opens it (instead of "I couldn't find an app called ...")
+            if (A_WEBSITE.matcher(m.group(1)).find() || AppResolver.resolve(ctx, m.group(1)).app == null) return false;
             open(ctx, m.group(1), done);
             return true;
         }

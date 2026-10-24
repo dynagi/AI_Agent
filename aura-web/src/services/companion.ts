@@ -242,8 +242,12 @@ async function understandLocally(raw: string, nav: Nav, now: number): Promise<Ha
   // "open it" / "open the site" means the page AURA just talked about (a booking site), not an app: the server knows
   // which (seen on the phone: "open it" matched "Blinkit" by sound and opened it)
   const notAnApp = /^(it|that|this|that one|this one|there|(the |that |this )?(site|website|link|page|booking site))$/;
-  if (open && !notAnApp.test(open[1]) && !/^(my |the )?(tasks?|calendar|wellness|shopping|chat|dashboard)\b/.test(open[1])) {
-    return { say: await openApp(open[1]) };
+  const aWebsite = /\b(web ?site|site|home ?page|docs|documentation|download page|official)\b|\.(com|in|org|net|io|co|ai|dev)\b/;
+  if (open && !notAnApp.test(open[1]) && !aWebsite.test(open[1])
+      && !/^(my |the )?(tasks?|calendar|wellness|shopping|chat|dashboard)\b/.test(open[1])) {
+    const said = await openApp(open[1]);
+    // no installed app by that name: it may be a website, which the server finds and opens
+    if (!said.startsWith("I couldn't find")) return { say: said };
   }
   const dial = t.match(/^(?:call|dial|phone)\s+([\d\s+-]{5,})$/);
   if (dial) {
