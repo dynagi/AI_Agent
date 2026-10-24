@@ -108,6 +108,16 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
 
     private CartAnswer cartAnswer;   // set while a cart question is waiting for its answer
 
+    /** AURA's last answer, to tell a follow-up about links it just offered ("open the first one") from a new command. */
+    private String lastSay = "";
+    private long lastSayAt;
+    private static final long LINK_FOLLOW_UP_MS = 3 * 60_000;
+    private static final java.util.regex.Pattern OFFERED_LINKS = java.util.regex.Pattern.compile(
+            "open the first one|which one should i open|shall i open it", java.util.regex.Pattern.CASE_INSENSITIVE);
+    private static final java.util.regex.Pattern FOLLOW_UP = java.util.regex.Pattern.compile(
+            "^(?:please )?(?:open|go to|show me|visit|yes|yeah|yep|sure|ok|okay|go ahead|the (?:first|second|third))\\b",
+            java.util.regex.Pattern.CASE_INSENSITIVE);
+
     @Override
     public IBinder onBind(Intent intent) {
         return null;
@@ -571,7 +581,11 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
         // calls, WhatsApp, other apps and media are handled on the phone itself: no server, no web view
         final boolean forWeb = webAsked;
         webAsked = false;
-        if (!forWeb && ActionRouter.handle(this, text, new ActionResult.Done() {
+        // right after AURA offered web links, "open the first one" / "yes" are about those links (the server has them),
+        // not about the screen or an app (seen: the screen assistant tapped the first link on the page instead)
+        final boolean linkFollowUp = System.currentTimeMillis() - lastSayAt < LINK_FOLLOW_UP_MS
+                && OFFERED_LINKS.matcher(lastSay).find() && FOLLOW_UP.matcher(text.trim()).find();
+        if (!forWeb && !linkFollowUp && ActionRouter.handle(this, text, new ActionResult.Done() {
             @Override
             public void onResult(ActionResult result) {
                 if (!inSession || requestId != id) return;
@@ -685,6 +699,8 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
     /** logText false: the reply names what another app is playing, so its words are kept out of the log. */
     private void answer(String say, boolean expectAnswer, boolean openApp, boolean logText) {
         answered = true;
+        lastSay = say == null ? "" : say;
+        lastSayAt = System.currentTimeMillis();
         Log.i(TAG, "answer (expectAnswer=" + expectAnswer + ", openApp=" + openApp + ")" + (logText ? ": " + say : ""));
         if (say == null || say.trim().isEmpty()) {
             endSession(0);

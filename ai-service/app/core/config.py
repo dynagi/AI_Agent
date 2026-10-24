@@ -22,10 +22,10 @@ class Settings(BaseSettings):
     nvidia_base_url: str = "https://integrate.api.nvidia.com/v1"
     # Let NVIDIA's reasoning models think at length before answering (slower; off = quick answers).
     nvidia_thinking: bool = False
-    nvidia_model: str = "nvidia/nemotron-3-super-120b-a12b"
+    nvidia_model: str = "nvidia/nemotron-3-ultra-550b-a55b"   # 24 Oct: ~1 s, while super took 30-40 s
     # Tried in order when the main model fails. Hosted models are retired or overloaded without notice
     # (nemotron-3-super was switched off on 2026-10-03), so one model must never be a single point of failure.
-    llm_fallback_models: str = "openai/gpt-oss-20b,nvidia/nemotron-3-ultra-550b-a55b"
+    llm_fallback_models: str = "nvidia/nemotron-3-super-120b-a12b,openai/gpt-oss-20b"
 
     openrouter_api_key: str = ""
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
@@ -79,7 +79,7 @@ class Settings(BaseSettings):
     shopping_retrain_min_interval_s: float = 120.0
     # The cart agent asks the LLM only for screens its fast path can't handle. It tries this quicker model
     # first (with a short timeout), then the main model (nvidia_model / grok_model). Empty = main model only.
-    shopping_agent_model: str = "nvidia/nemotron-3-super-120b-a12b"
+    shopping_agent_model: str = "nvidia/nemotron-3-ultra-550b-a55b"
 
     @property
     def cart_agent_model(self) -> str | None:

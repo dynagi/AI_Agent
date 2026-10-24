@@ -151,7 +151,8 @@ async def _converse(req: ConverseRequest) -> ConverseResponse:
     messages.append({"role": "user", "content": user})
 
     try:
-        data = await llm_service.chat_json(messages, max_tokens=260)
+        # a short wait per model: a slow free model hands over to the next instead of the phone giving up
+        data = await llm_service.chat_json(messages, max_tokens=260, timeout=15, retries=1)
     except LLMServiceError as exc:
         # The model sometimes answers in plain text instead of JSON — speak that rather than failing.
         raw = str(exc)

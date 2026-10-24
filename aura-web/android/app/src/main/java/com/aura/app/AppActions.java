@@ -94,7 +94,8 @@ final class AppActions {
             "\\b(?:web ?site|site|home ?page|docs|documentation|download page|official)\\b|\\.(?:com|in|org|net|io|co|ai|dev)\\b");
     /** "open it", "open the site": the page AURA just talked about (a booking site), for the server; not an app name. */
     private static final Pattern NOT_AN_APP = Pattern.compile(
-            "^(?:it|that|this|that one|this one|there|(?:the |that |this )?(?:site|website|link|page|booking site))$");
+            "^(?:it|that|this|that one|this one|there|(?:the |that |this )?(?:site|website|link|page|booking site)"
+            + "|(?:the )?(?:first|second|third|fourth|fifth|1st|2nd|3rd) (?:one|result|link|site|page))$");
     // screens inside AURA itself: the web app answers those
     private static final Pattern AURA_SCREEN = Pattern.compile(
             "^(?:my |the )?(?:tasks?|calendar|wellness|shopping|chat|dashboard|aura|medicines?|travel|voice|settings)\\b.*");
