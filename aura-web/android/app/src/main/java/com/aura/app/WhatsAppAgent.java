@@ -194,6 +194,74 @@ final class WhatsAppAgent {
         }, 1500);
     }
 
+    private static final long END_CALL_WAIT_MS = 7000;
+
+    /**
+     * Ends the WhatsApp call the user is on: presses WhatsApp's End-call button (bringing the call screen up first if
+     * WhatsApp is in the background), then checks the phone left call audio. Says plainly when it can't.
+     */
+    static void endCall(Context ctx, ActionResult.Done done) {
+        final AudioManager audio = (AudioManager) ctx.getSystemService(Context.AUDIO_SERVICE);
+        if (AuraAccessibilityService.instance == null) {
+            ActionRouter.reply(done, ActionResult.Status.USER_ACTION_REQUIRED, "end_whatsapp_call",
+                    "I need AURA's accessibility access to end WhatsApp calls. Tap the red button in WhatsApp to hang up.");
+            return;
+        }
+        final long start = SystemClock.uptimeMillis();
+        ui.post(new Runnable() {
+            boolean opened, returned, pressed;
+            long pressedAt;
+
+            @Override
+            public void run() {
+                AuraAccessibilityService screen = AuraAccessibilityService.instance;
+                long now = SystemClock.uptimeMillis();
+                boolean inCall = audio != null && audio.getMode() == AudioManager.MODE_IN_COMMUNICATION;
+                if (pressed) {
+                    if (!inCall) {
+                        ActionRouter.reply(done, ActionResult.Status.SUCCESS, "end_whatsapp_call", "Call ended.");
+                    } else if (now - pressedAt < 4000) {
+                        ui.postDelayed(this, POLL_MS);
+                    } else {
+                        ActionRouter.reply(done, ActionResult.Status.UNVERIFIED, "end_whatsapp_call",
+                                "I pressed WhatsApp's end-call button, but the call still seems to be on. Please check.");
+                    }
+                    return;
+                }
+                if (!inCall) {
+                    ActionRouter.reply(done, ActionResult.Status.FAILED, "end_whatsapp_call", "There's no call to end.");
+                    return;
+                }
+                if (screen != null && screen.clickLabelled(PKG, WhatsAppLabels.END_CALL_BUTTON)) {
+                    pressed = true;
+                    pressedAt = now;
+                    ui.postDelayed(this, POLL_MS);
+                    return;
+                }
+                if (screen != null && !returned && screen.clickLabelled(PKG, WhatsAppLabels.RETURN_TO_CALL)) {
+                    returned = true;            // the call screen is coming up: look for the button again
+                } else if (!opened && (screen == null || !PKG.equals(screen.foregroundPackage()))) {
+                    opened = true;              // WhatsApp in the background: bring it forward (the call keeps going)
+                    Intent launch = ctx.getPackageManager().getLaunchIntentForPackage(PKG);
+                    Context from = AppActions.launcher(ctx);
+                    if (launch != null && from != null) {
+                        try {
+                            from.startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                        } catch (Exception ignored) {
+                            // checked again below
+                        }
+                    }
+                }
+                if (now - start < END_CALL_WAIT_MS) {
+                    ui.postDelayed(this, POLL_MS);
+                } else {
+                    ActionRouter.reply(done, ActionResult.Status.USER_ACTION_REQUIRED, "end_whatsapp_call",
+                            "I couldn't find WhatsApp's end-call button, so the call is still on. Tap the red button to hang up.");
+                }
+            }
+        });
+    }
+
     // ------------------------------------------------------------------ shared
 
     /** The common checks before any WhatsApp action. Returns the context to launch from, or null after replying why not. */

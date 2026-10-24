@@ -204,8 +204,9 @@ final class CallAgent {
                 AudioManager audio = (AudioManager) ctx.getSystemService(Context.AUDIO_SERVICE);
                 boolean internetCall = audio != null && audio.getMode() == AudioManager.MODE_IN_COMMUNICATION;
                 if (internetCall) {
-                    ActionRouter.reply(done, ActionResult.Status.UNSUPPORTED, "end_call",
-                            "That looks like an internet call, like WhatsApp. I can only end regular phone calls.");
+                    // an internet call: Android can't end it, but WhatsApp's own End-call button can be pressed
+                    // through the accessibility service (WhatsApp has no API for this)
+                    WhatsAppAgent.endCall(ctx, done);
                 } else {
                     ActionRouter.reply(done, ActionResult.Status.FAILED, "end_call", "There's no call to end.");
                 }

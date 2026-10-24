@@ -107,36 +107,22 @@ public class AuraPhonePlugin extends Plugin {
         if (name.isEmpty()) { call.reject("No app name"); return; }
         name = alias(name);
 
-        PackageManager pm = getContext().getPackageManager();
-        Intent main = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER);
-        List<ResolveInfo> apps = pm.queryIntentActivities(main, 0);
-
-        ResolveInfo best = null;
-        int bestScore = 0;
-        List<String[]> scored = new ArrayList<>();
-        for (ResolveInfo ri : apps) {
-            if (ri.activityInfo.packageName.equals(getContext().getPackageName())) continue;
-            String label = norm(String.valueOf(ri.loadLabel(pm)));
-            int s = score(label, name);
-            if (s > 0) scored.add(new String[]{String.valueOf(s), String.valueOf(ri.loadLabel(pm))});
-            if (s > bestScore) { bestScore = s; best = ri; }
-        }
-
+        // the same matching as the voice service (known packages, spelling, then sound-alike names), so a misheard
+        // name ("open blanket" for Blinkit) opens the same app whichever path handles the command
+        AppResolver.Resolution found = AppResolver.resolve(getContext(), name);
         JSObject res = new JSObject();
-        if (best != null && bestScore >= 2) {
-            Intent launch = pm.getLaunchIntentForPackage(best.activityInfo.packageName);
-            if (launch != null) {
-                launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                getContext().startActivity(launch);
-                res.put("opened", true);
-                res.put("label", String.valueOf(best.loadLabel(pm)));
-                call.resolve(res);
-                return;
-            }
+        PackageManager pm = getContext().getPackageManager();
+        Intent launch = found.app == null ? null : pm.getLaunchIntentForPackage(found.app.pkg);
+        if (launch != null) {
+            launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(launch);
+            res.put("opened", true);
+            res.put("label", found.app.label);
+            call.resolve(res);
+            return;
         }
-        scored.sort((a, b) -> Integer.parseInt(b[0]) - Integer.parseInt(a[0]));
         JSArray suggestions = new JSArray();
-        for (int i = 0; i < Math.min(3, scored.size()); i++) suggestions.put(scored.get(i)[1]);
+        for (String label : found.suggestions) suggestions.put(label);
         res.put("opened", false);
         res.put("suggestions", suggestions);
         call.resolve(res);

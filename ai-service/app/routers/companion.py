@@ -18,6 +18,8 @@ import structlog
 from app.travel import assistant as flight_assistant
 from app.travel import ground
 from app.assistant import links, web
+from app.services.shopping_history import shopping_history
+from app.shopping import order_history
 
 router = APIRouter(prefix="/ai", tags=["companion"])
 
@@ -152,6 +154,16 @@ async def _converse(req: ConverseRequest) -> ConverseResponse:
     if ground_reply is not None:
         links.remember(user, [links.Link(site=ground_reply.site, url=ground_reply.url)])
         return ConverseResponse(say=ground_reply.say, do=[ConverseAction(type="open_url", args={"url": ground_reply.url})])
+    # past orders: answered only from the orders AURA has read from the store apps or invoices, never guessed
+    if order_history.ASKS.search(req.message):
+        try:
+            events = await shopping_history.get_events(user) if user != "anonymous" else []
+        except Exception as exc:   # the history store being down must not turn into an invented answer
+            structlog.get_logger().warning("order_history_read_failed", error=str(exc)[:120])
+            return ConverseResponse(say="I couldn't read your saved orders right now. Please try again in a bit.", do=[])
+        said = order_history.answer(req.message, events)
+        if said:
+            return ConverseResponse(say=said, do=[])
     # searching the web and opening websites, from real search results
     web_reply = await web.handle(req.message, user)
     if web_reply is not None:

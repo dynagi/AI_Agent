@@ -300,4 +300,44 @@ public class AssistantLogicTest {
         assertFalse(SoundsLike.alike("swiggy", "Spotify"));
         assertFalse(SoundsLike.alike("maps", "Messages"));
     }
+
+    @Test
+    public void onlyAClearYesSendsOrCalls() {
+        // seen on the phone: a one-word sound heard while AURA listened was taken as yes and a message was sent
+        for (String ok : new String[]{"yes", "Yes, send it", "send it", "go ahead", "yes please", "haan bhejo", "call now"}) {
+            assertTrue(ok, Intents.strongYes(ok));
+        }
+        for (String unclear : new String[]{"ok", "okay", "ha", "haan", "ya", "right", "correct"}) {
+            assertTrue(unclear, Intents.yes(unclear));          // still understood as leaning yes...
+            assertFalse(unclear, Intents.strongYes(unclear));   // ...but not enough to send: AURA asks again
+        }
+        assertFalse(Intents.strongYes("yes but don't send it"));
+        assertFalse(Intents.strongYes("no"));
+    }
+
+    @Test
+    public void blanketIsHeardAsBlinkitOnlyAsAnAppName() {
+        assertTrue(SoundsLike.alike("blanket", "Blinkit"));     // "open blanket" finds the Blinkit app
+        assertFalse(SoundsLike.alike("blanket", "Zepto"));
+    }
+
+    @Test
+    public void whatsAppCallEndingCommandsAreUnderstood() {
+        // these did nothing before: only "end the call" / "hang up" were recognised
+        for (String c : new String[]{"hang up", "end my whatsapp audio call", "disconnect this whatsapp video call",
+                "end the whatsapp call", "cut the call", "leave the call", "end my video call"}) {
+            assertEquals(c, Intents.Type.END_CALL, Intents.parse(c).type);
+        }
+        assertEquals(Intents.Type.NONE, Intents.parse("end").type);   // too vague to end anything
+    }
+
+    @Test
+    public void whatsAppCallScreenLabels() {
+        assertTrue(WhatsAppLabels.isEndCallButton("End call"));
+        assertTrue(WhatsAppLabels.isEndCallButton("Leave call"));
+        assertFalse(WhatsAppLabels.isEndCallButton("Mute"));
+        assertFalse(WhatsAppLabels.isEndCallButton("End-to-end encrypted"));
+        assertTrue(WhatsAppLabels.isReturnToCall("Tap to return to call"));
+        assertFalse(WhatsAppLabels.isReturnToCall("Calls"));
+    }
 }

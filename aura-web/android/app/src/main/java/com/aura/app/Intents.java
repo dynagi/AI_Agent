@@ -33,7 +33,9 @@ final class Intents {
     private static final Pattern NOT_A_PERSON = Pattern.compile("^(?:me|us|you|it|this|that|a|an|the|my|aura|back|)$");
 
     private static final Pattern END_CALL = Pattern.compile(
-            "^(?:hang up|hang up (?:the |this )?(?:call|phone)|(?:cut|end|stop|disconnect|drop) (?:the |this |my )?call|disconnect|cut it)$", I);
+            "^(?:hang up|hang up (?:the |this |my )?(?:whatsapp )?(?:audio |voice |video )?(?:call|phone)|"
+            + "(?:cut|end|stop|disconnect|drop|leave) (?:the |this |my )?(?:whatsapp )?(?:audio |voice |video )?call"
+            + "(?: on whatsapp)?|disconnect|cut it)$", I);
 
     private static final Pattern WA_CALL_1 = Pattern.compile(
             "^(?:make |start |place )?(?:a |an )?(?:(video|audio|voice) )?(?:" + WA + " )?call (?:to |with )?(.+?) " + VIA + " " + WA + "$", I);
@@ -166,6 +168,10 @@ final class Intents {
 
     private static final Pattern YES = Pattern.compile(
             "^(?:yes|yeah|yep|yup|ya|ok|okay|sure|haan|ha|correct|right|confirm|confirmed|send|send it|do it|go ahead|please do|call|call now)(?: please| send it| do it| go ahead)?$");
+    private static final Pattern STRONG_YES = Pattern.compile(
+            "^(?:yes|yeah|yep|yup|sure|confirm|confirmed|send|send it|send now|do it|go ahead|please do|yes please|"
+            + "call|call now|call (?:him|her|them)|haan bhejo|haan bhej do|bhej do|haan call karo|haan karo)(?: please| now)?$");
+    private static final Pattern NEGATION = Pattern.compile("\\b(?:no|not|don't|do not|nahi|wait|cancel)\\b");
     private static final Pattern NO = Pattern.compile(
             "^(?:no|nope|nah|nahi|don't|do not|don't send(?: it)?|not now|wait)(?: .*)?$");
     private static final Pattern CANCEL = Pattern.compile(
@@ -174,6 +180,16 @@ final class Intents {
             "\\b(?:i don't know|i do not know|don't know|no idea|not sure|i don't have (?:it|the number|his number|her number)|don't have it)\\b");
 
     static boolean yes(String reply) { return YES.matcher(low(reply)).matches(); }
+
+    /**
+     * A yes clear enough to send a message or place a call. Short sounds ("ok", "ha", "ya", "right") are
+     * easily misheard from background speech or noise: they get a second, explicit question instead (seen on the
+     * phone: a one-word reply heard while AURA listened was taken as yes and a WhatsApp message was sent).
+     */
+    static boolean strongYes(String reply) {
+        String r = low(reply).replace(',', ' ').replaceAll("\\s+", " ").trim();
+        return STRONG_YES.matcher(r).matches() || (r.startsWith("yes ") && !NEGATION.matcher(r).find());
+    }
 
     static boolean no(String reply) { return NO.matcher(low(reply)).matches(); }
 

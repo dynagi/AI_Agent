@@ -89,9 +89,25 @@ final class ActionRouter {
                     break;
             }
         }
-        if (Intents.parse(t).type != Intents.Type.NONE) return 2;
-        if (AppActions.isCommand(t) || ScreenIntents.isCommand(t)) return 2;
-        return 0;
+        // among equally good commands, prefer the guess that names an app or service AURA knows: when the recogniser
+        // offers both "open blanket" and "open blinkit", Blinkit wins (the first guess is no better than the others)
+        int known = namesKnownApp(low) ? 1 : 0;
+        if (Intents.parse(t).type != Intents.Type.NONE) return 2 + known;
+        if (AppActions.isCommand(t) || ScreenIntents.isCommand(t)) return 2 + known;
+        return known;
+    }
+
+    /** Lower-case names of AURA's services and the apps on this phone, filled by vocabulary(). */
+    private static final java.util.Set<String> KNOWN_NAMES = java.util.Collections.synchronizedSet(new java.util.HashSet<>());
+
+    static boolean namesKnownApp(String lowerText) {
+        String padded = " " + lowerText.replaceAll("[^a-z0-9 ]", " ").replaceAll("\\s+", " ") + " ";
+        synchronized (KNOWN_NAMES) {
+            for (String name : KNOWN_NAMES) {
+                if (name.length() >= 4 && padded.contains(" " + name + " ")) return true;
+            }
+        }
+        return false;
     }
 
     private static final String[] VOCABULARY = {
@@ -103,6 +119,7 @@ final class ActionRouter {
     /** What the recogniser should expect to hear: AURA's command words and the names of the apps on this phone. */
     static ArrayList<String> vocabulary(Context ctx) {
         ArrayList<String> words = new ArrayList<>(java.util.Arrays.asList(VOCABULARY));
+        for (String w : VOCABULARY) KNOWN_NAMES.add(w.toLowerCase(Locale.ROOT));
         try {
             android.content.pm.PackageManager pm = ctx.getPackageManager();
             android.content.Intent launcher = new android.content.Intent(android.content.Intent.ACTION_MAIN)
@@ -110,6 +127,7 @@ final class ActionRouter {
             for (android.content.pm.ResolveInfo ri : pm.queryIntentActivities(launcher, 0)) {
                 String label = String.valueOf(ri.loadLabel(pm)).trim();
                 if (!label.isEmpty() && label.length() <= 30 && !words.contains(label)) words.add(label);
+                if (!label.isEmpty() && label.length() <= 30) KNOWN_NAMES.add(label.toLowerCase(Locale.ROOT));
                 if (words.size() >= 120) break;
             }
         } catch (Exception e) {
@@ -219,10 +237,18 @@ final class ActionRouter {
                 return true;
             }
             case CONFIRM: {
-                if (Intents.yes(low)) {
+                if (Intents.strongYes(low)) {
+                    Log.i(TAG, "confirm: clear yes");
                     task.confirmed = true;
                     execute(ctx, task, done);
                     return true;
+                }
+                if (Intents.yes(low) && !Intents.no(low)) {
+                    // "ok" / "ha" / "ya": not enough for something that can't be undone; ask for an explicit yes
+                    Log.i(TAG, "confirm: unclear yes, asking again");
+                    return clarify(p, done, task.type == Intents.Type.WA_MESSAGE
+                            ? "To send it, say \"yes, send it\". Or say no."
+                            : "To go ahead, say \"yes\". Or say no.");
                 }
                 if (Intents.no(low)) {
                     if (task.type == Intents.Type.SCREEN_TASK) ScreenAgent.cancel(task);
@@ -264,6 +290,20 @@ final class ActionRouter {
         again.retries = p.retries + 1;
         cx.pending = again;
         say(done, new ActionResult(ActionResult.Status.NEEDS_ANSWER, "ask", "Sorry, I didn't catch that. " + p.question, true, true));
+        return true;
+    }
+
+    /** Asks the pending question again in clearer words (at most twice, then leaves it). */
+    private static boolean clarify(ConversationContext.Pending p, ActionResult.Done done, String question) {
+        if (p.retries >= 2) {
+            reply(done, ActionResult.Status.CANCELLED, "ask", "I didn't get a clear yes, so I haven't done it.");
+            return true;
+        }
+        ConversationContext.Pending again = new ConversationContext.Pending(p.ask, p.task, p.question, p.options, p.contacts,
+                SystemClock.elapsedRealtime());
+        again.retries = p.retries + 1;
+        cx.pending = again;
+        say(done, new ActionResult(ActionResult.Status.NEEDS_ANSWER, "ask", question, true, true));
         return true;
     }
 

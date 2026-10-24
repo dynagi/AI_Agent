@@ -37,7 +37,7 @@ def select_agents(situation: str) -> list[str]:
     if "travel" in matched and "research" in matched and not re.search(r"\b(research|learn|summarize)\b", lowered):
         matched.remove("research")
     # "find/compare protein powder" or "order milk" is a shopping request, not research
-    if "shopping" in matched and "research" in matched and not re.search(r"(research|learn|summarize)", lowered):
+    if "shopping" in matched and "research" in matched and not re.search(r"\b(research|learn|summarize)\b", lowered):
         matched.remove("research")
     return matched or ["productivity"]
 
