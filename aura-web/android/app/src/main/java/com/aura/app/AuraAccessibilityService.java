@@ -1030,8 +1030,13 @@ public class AuraAccessibilityService extends AccessibilityService implements Ca
             if (continueButton != null) continueButton.setVisibility(View.GONE);
             if (stopButton != null) stopButton.setText("Close");
             if (backButton != null) backButton.setVisibility(View.VISIBLE);
+            // the result stays readable for a while, then the bar gets out of the way (it sat over every app,
+            // including AURA's own bottom menu, until Close was tapped)
+            ui.postDelayed(() -> { if (!running) hideOverlay(); }, DONE_BAR_MS);
         });
     }
+
+    private static final long DONE_BAR_MS = 20_000;
 
     // ------------------------------------------------------------------ the AURA bar on top of the store app
     private void showOverlay(String message) {
