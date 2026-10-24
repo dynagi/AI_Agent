@@ -13,6 +13,9 @@ final class WhatsAppLabels {
     static final Pattern RETURN_TO_CALL = Pattern.compile(
             "(?i)(?:tap to return to (?:the )?call|return to call|ongoing (?:voice |video )?call)");
 
+    /** The end-call button's view id, used when the button has no readable description. */
+    static final Pattern END_CALL_ID = Pattern.compile("(?i)(?:^|_)(?:end_call|hangup|hang_up)");
+
     private WhatsAppLabels() { }
 
     static boolean isEndCallButton(String label) { return END_CALL_BUTTON.matcher(label).matches(); }

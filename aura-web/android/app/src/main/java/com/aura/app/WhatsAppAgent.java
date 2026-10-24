@@ -210,6 +210,7 @@ final class WhatsAppAgent {
         final long start = SystemClock.uptimeMillis();
         ui.post(new Runnable() {
             boolean opened, returned, pressed;
+            int revealTaps;
             long pressedAt;
 
             @Override
@@ -232,7 +233,8 @@ final class WhatsAppAgent {
                     ActionRouter.reply(done, ActionResult.Status.FAILED, "end_whatsapp_call", "There's no call to end.");
                     return;
                 }
-                if (screen != null && screen.clickLabelled(PKG, WhatsAppLabels.END_CALL_BUTTON)) {
+                if (screen != null && (screen.clickLabelled(PKG, WhatsAppLabels.END_CALL_BUTTON)
+                        || screen.clickById(PKG, WhatsAppLabels.END_CALL_ID))) {
                     pressed = true;
                     pressedAt = now;
                     ui.postDelayed(this, POLL_MS);
@@ -240,6 +242,10 @@ final class WhatsAppAgent {
                 }
                 if (screen != null && !returned && screen.clickLabelled(PKG, WhatsAppLabels.RETURN_TO_CALL)) {
                     returned = true;            // the call screen is coming up: look for the button again
+                } else if (screen != null && revealTaps < 2 && PKG.equals(screen.foregroundPackage())) {
+                    // a video call hides its buttons until the screen is tapped (seen on the phone): show them
+                    revealTaps++;
+                    screen.tapCentre();
                 } else if (!opened && (screen == null || !PKG.equals(screen.foregroundPackage()))) {
                     opened = true;              // WhatsApp in the background: bring it forward (the call keeps going)
                     Intent launch = ctx.getPackageManager().getLaunchIntentForPackage(PKG);

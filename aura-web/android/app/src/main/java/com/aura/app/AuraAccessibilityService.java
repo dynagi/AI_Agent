@@ -987,6 +987,41 @@ public class AuraAccessibilityService extends AccessibilityService implements Ca
         return null;
     }
 
+    /** Taps the middle of the screen: brings back controls an app hides (WhatsApp's video-call buttons). */
+    boolean tapCentre() {
+        if (Build.VERSION.SDK_INT < 24) return false;
+        int h = getResources().getDisplayMetrics().heightPixels;
+        int w = getResources().getDisplayMetrics().widthPixels;
+        Path p = new Path();
+        p.moveTo(w / 2f, h * 0.4f);
+        return dispatchGesture(new GestureDescription.Builder()
+                .addStroke(new GestureDescription.StrokeDescription(p, 0, 60)).build(), null, null);
+    }
+
+    /** Clicks the first clickable view of `pkg` whose view id matches (e.g. WhatsApp's end_call_button). */
+    boolean clickById(String pkg, Pattern id) {
+        try {
+            for (AccessibilityNodeInfo root : appRoots(pkg)) {
+                AccessibilityNodeInfo n = firstWithId(root, id, 0);
+                if (n != null) return n.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+            }
+        } catch (Exception e) {
+            // the screen changed while it was being read
+        }
+        return false;
+    }
+
+    private AccessibilityNodeInfo firstWithId(AccessibilityNodeInfo n, Pattern id, int depth) {
+        if (n == null || depth > 50) return null;
+        String vid = n.getViewIdResourceName();
+        if (vid != null && n.isClickable() && n.isVisibleToUser() && id.matcher(vid.replaceAll(".*:id/", "")).find()) return n;
+        for (int i = 0; i < n.getChildCount(); i++) {
+            AccessibilityNodeInfo f = firstWithId(n.getChild(i), id, depth + 1);
+            if (f != null) return f;
+        }
+        return null;
+    }
+
     private void swipeUp() {
         swipe(true);
     }

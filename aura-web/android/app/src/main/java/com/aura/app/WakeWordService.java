@@ -46,7 +46,10 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
     private static final float SAMPLE_RATE = 16000f;
     // The recogniser only knows these phrases; everything else becomes [unk]. The extra spellings are how the
     // model tends to hear "aura".
-    private static final String GRAMMAR = "[\"hey aura\", \"hey ora\", \"hey aurora\", \"hey laura\", \"[unk]\"]";
+    // the wake phrases, plus the hang-up phrases used during a call (ignored at any other time)
+    private static final String GRAMMAR = "[\"hey aura\", \"hey ora\", \"hey aurora\", \"hey laura\", "
+            + "\"hang up\", \"end the call\", \"end call\", \"cut the call\", \"cut call\", \"disconnect\", \"[unk]\"]";
+    private long callArmedUntil;
     private static final long REARM_MS = 2500;
 
     static volatile WakeWordService instance;
@@ -359,7 +362,9 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
                 && hypothesis != null && !hypothesis.contains("\"text\" : \"\"")) {
             Log.d(TAG, "wake candidate: " + hypothesis.replaceAll("\\s+", " "));
         }
-        if (destroyed || speech == null || !WakeGate.isWakePhrase(hypothesis, true)) return;
+        if (destroyed || speech == null) return;
+        if (endCallHeard(hypothesis)) return;
+        if (!WakeGate.isWakePhrase(hypothesis, true)) return;
         long now = System.currentTimeMillis();
         if (now - lastWake < REARM_MS) return;
         lastWake = now;
@@ -399,41 +404,42 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
         return mode == android.media.AudioManager.MODE_IN_CALL || mode == android.media.AudioManager.MODE_IN_COMMUNICATION;
     }
 
+    /**
+     * "Hey Aura" during a call. The microphone stream that heard it is kept running: Android gives a newly opened
+     * recording only silence while the call app holds the microphone (seen on the phone: the separate call recogniser
+     * heard nothing during a WhatsApp video call). The wake recogniser also knows the hang-up phrases, so for the next
+     * few seconds "hang up" / "end the call" ends the call. Nothing is said aloud (the other person would hear it).
+     */
     private void callSession() {
-        inSession = true;
-        paused = true;
-        releaseMic();
-        state = "paused";
-        Log.i(TAG, "session started during a call: call phrases only");
+        callArmedUntil = System.currentTimeMillis() + CALL_LISTEN_MS;
+        Log.i(TAG, "session started during a call: call phrases only (same microphone stream)");
         overlay.show("On a call");
         overlay.setStatus("On a call", true);
-        overlay.setBody("I can't hear full commands during a call. Say \"hang up\" to end it, or call me again after.", false);
-        try {
-            Recognizer recognizer = new Recognizer(model, SAMPLE_RATE, WakeGate.CALL_GRAMMAR);
-            recognizer.setWords(true);
-            callSpeech = new SpeechService(recognizer, SAMPLE_RATE);
-            callSpeech.startListening(new RecognitionListener() {
-                @Override public void onPartialResult(String hypothesis) { }
-                @Override public void onResult(String hypothesis) { heard(hypothesis); }
-                @Override public void onFinalResult(String hypothesis) { heard(hypothesis); }
-                @Override public void onError(Exception e) { showOnly("I couldn't listen during this call.", 2500); }
-                @Override public void onTimeout() { }
+        overlay.setBody("Say \"hang up\" to end the call. Other commands can't be heard during a call.", false);
+        ui.postDelayed(() -> {
+            if (callArmedUntil != 0 && System.currentTimeMillis() >= callArmedUntil) {
+                callArmedUntil = 0;
+                overlay.hide();
+            }
+        }, CALL_LISTEN_MS + 200);
+    }
 
-                private void heard(String hypothesis) {
-                    if (!inSession || destroyed || callSpeech == null) return;
-                    if (!WakeGate.isEndCallPhrase(hypothesis, true)) return;
-                    stopCallSpeech();
-                    overlay.setStatus("Ending the call…", false);
-                    CallAgent.end(WakeWordService.this, result -> {
-                        if (inSession && !destroyed) showOnly(result.say, 2500);
-                    });
-                }
-            });
-        } catch (Exception e) {
-            showOnly("I couldn't listen during this call.", 2500);
-            return;
-        }
-        ui.postDelayed(() -> { if (inSession && callSpeech != null) endSession(0); }, CALL_LISTEN_MS);
+    /** During a call: "hang up" heard right after "Hey Aura" (or "Hey Aura, hang up" in one go). */
+    private boolean endCallHeard(String hypothesis) {
+        if (!inCall()) return false;
+        boolean armed = System.currentTimeMillis() < callArmedUntil;
+        if (!WakeGate.isEndCallCommand(hypothesis, armed)) return false;
+        callArmedUntil = 0;
+        Log.i(TAG, "end-call phrase heard during a call");
+        overlay.show("On a call");
+        overlay.setStatus("Ending the call...", false);
+        overlay.setBody("", false);
+        CallAgent.end(WakeWordService.this, result -> ui.post(() -> {
+            overlay.setStatus("", false);
+            overlay.setBody(result.say, false);
+            ui.postDelayed(() -> overlay.hide(), 2500);
+        }));
+        return true;
     }
 
     private void stopCallSpeech() {

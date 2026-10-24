@@ -66,6 +66,32 @@ final class WakeGate {
      * During a call Android gives full speech recognition only silence, but the wake engine still hears. Whether its
      * final result is a clear request to end the call (the whole utterance, every word confident).
      */
+    /**
+     * During a call: an end-call phrase, either alone right after "Hey Aura" (`armed`) or after the wake phrase in the
+     * same breath ("hey aura hang up"). Every end-call word must be clearly heard.
+     */
+    static boolean isEndCallCommand(String json, boolean armed) {
+        if (json == null) return false;
+        try {
+            JSONObject o = new JSONObject(json);
+            JSONArray words = o.optJSONArray("result");
+            if (words == null || words.length() == 0) return false;
+            int from = 0;
+            String first = words.getJSONObject(0).optString("word", "");
+            if ("hey".equals(first) && words.length() >= 3) from = 2;
+            else if (!armed) return false;
+            StringBuilder rest = new StringBuilder();
+            for (int i = from; i < words.length(); i++) {
+                JSONObject w = words.getJSONObject(i);
+                if (w.optDouble("conf", 0) < MIN_END_CALL) return false;
+                rest.append(rest.length() > 0 ? " " : "").append(w.optString("word", ""));
+            }
+            return END_CALL.contains(rest.toString().toLowerCase(Locale.ROOT));
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     static boolean isEndCallPhrase(String json, boolean isFinal) {
         if (!isFinal || json == null) return false;
         try {

@@ -110,4 +110,26 @@ public class WakeGateTest {
         assertFalse(WakeGate.isWakePhrase("not json", true));
         assertFalse(WakeGate.isWakePhrase(null, true));
     }
+
+    private static String words(String... wc) {
+        StringBuilder b = new StringBuilder("{\"result\":[");
+        StringBuilder t = new StringBuilder();
+        for (int i = 0; i < wc.length; i += 2) {
+            b.append(i > 0 ? "," : "").append("{\"word\":\"").append(wc[i]).append("\",\"conf\":").append(wc[i + 1]).append("}");
+            t.append(i > 0 ? " " : "").append(wc[i]);
+        }
+        return b.append("],\"text\":\"").append(t).append("\"}").toString();
+    }
+
+    @Test
+    public void hangUpDuringACallUsesTheSameStream() {
+        // after "Hey Aura" during a call: "hang up" alone ends it
+        assertTrue(WakeGate.isEndCallCommand(words("hang", "1.0", "up", "0.9"), true));
+        // not armed: only "hey aura hang up" in one breath counts
+        assertFalse(WakeGate.isEndCallCommand(words("hang", "1.0", "up", "0.9"), false));
+        assertTrue(WakeGate.isEndCallCommand(words("hey", "1.0", "aura", "0.6", "end", "0.9", "call", "0.95"), false));
+        // unclear words never end a call
+        assertFalse(WakeGate.isEndCallCommand(words("hang", "0.4", "up", "0.9"), true));
+        assertFalse(WakeGate.isEndCallCommand(words("hey", "1.0", "aura", "0.9"), true));
+    }
 }
