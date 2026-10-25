@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from urllib.parse import quote_plus
 
 _MODE = re.compile(r"\b(trains?|rail(?:way)?|bus(?:es)?|shared (?:cab|taxi|ride)s?|cab ?shar(?:e|ing)|share (?:a )?(?:cab|taxi)|"
-                   r"car ?pool(?:ing)?|ride ?shar(?:e|ing))\b", re.I)
+                   r"car ?pool(?:ing)?|ride ?shar(?:e|ing)|cabs?|taxis?|outstation)\b", re.I)
 _ROUTE = re.compile(r"\bfrom\s+([a-z][a-z .]{1,30}?)\s+to\s+([a-z][a-z .]{1,30}?)(?=\s+(?:on|for|tomorrow|today|this|next|by|at)\b|[,.?!]|$)",
                     re.I)
 _TO_FROM = re.compile(r"\bto\s+([a-z][a-z .]{1,30}?)\s+from\s+([a-z][a-z .]{1,30}?)(?=\s+(?:on|for|tomorrow|today|this|next|by|at)\b|[,.?!]|$)",
@@ -32,7 +32,9 @@ def mode_of(text: str) -> str | None:
         return "train"
     if w.startswith("bus"):
         return "bus"
-    return "shared cab"
+    if re.search(r"shar|pool", w):
+        return "shared cab"
+    return "cab"
 
 
 def _route(text: str) -> tuple[str, str] | None:
@@ -42,6 +44,12 @@ def _route(text: str) -> tuple[str, str] | None:
     m = _TO_FROM.search(text)
     if m:
         return m.group(2).strip(" ."), m.group(1).strip(" .")
+    # "Delhi to Ajmer" without "from": only between two known cities (so "go to work" is never a route)
+    t = text.lower()
+    for a in sorted(STATIONS, key=len, reverse=True):
+        for b in sorted(STATIONS, key=len, reverse=True):
+            if a != b and re.search(rf"\b{re.escape(a)}\s+to\s+{re.escape(b)}\b", t):
+                return a, b
     return None
 
 
@@ -106,6 +114,8 @@ def handle(text: str) -> Reply | str | None:
         return None
     route = _route(text)
     if route is None:
+        if mode == "cab":
+            return None     # a local ride ("cab to the airport"): handled elsewhere
         return f"Sure. Which {mode} route: from which city to which city?"
     frm, to = (c.title() for c in route)
     when = _WHEN.search(text)
@@ -130,6 +140,13 @@ def handle(text: str) -> Reply | str | None:
         return Reply(site="Google trains", url=url,
                      say=f"I don't know the station for {frm if not src else to}, so I'm opening a search for trains from "
                          f"{frm} to {to}{on}. Booking and payment are up to you.")
+    if mode == "cab":
+        # no cab site opens with the route filled in (checked: two gave "page not found", one opened blank), so the
+        # search for this exact route, which lists the operators that serve it
+        url = "https://www.google.com/search?q=" + quote_plus(f"outstation cab from {frm} to {to}")
+        return Reply(site="cab search", url=url,
+                     say=f"I can't see live cab fares, so I won't guess them. Opening cab options from {frm} to {to}{on}: "
+                         "it lists the operators on this route with their prices. Booking and payment are up to you there.")
     url = "https://www.google.com/search?q=" + quote_plus(f"shared cab from {frm} to {to}")
     return Reply(site="shared cab search", url=url,
                  say=f"Shared cabs run only on some routes, and I can't see their seats or fares. Opening a search for "

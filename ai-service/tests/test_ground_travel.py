@@ -52,3 +52,12 @@ def test_bus_and_train_open_on_the_date_asked_for():
     assert "/30102026/" in ground.handle("trains from Pune to Mumbai on 30th October").url
     unknown = ground.handle("trains from Pune to Smalltown")
     assert "google.com/search" in unknown.url and "don't know the station" in unknown.say
+
+
+def test_plain_cab_between_cities_and_route_without_from():
+    """Seen while recording: "find Delhi to Ajmer cab for me" got no answer."""
+    r = ground.handle("find delhi to ajmer cab for me")
+    assert "outstation+cab+from+Delhi+to+Ajmer" in r.url and "Delhi to Ajmer" in r.say
+    assert ground.handle("book a cab to the airport") is None          # a local ride: not this helper
+    assert ground.handle("I want to go to work") is None
+    assert "/NDLS/AII/" in ground.handle("trains delhi to ajmer tomorrow").url
