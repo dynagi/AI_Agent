@@ -414,6 +414,23 @@ def _is_add(el: PageElement) -> bool:
     return bool(_ADD.match((el.text or "").strip()) or _ADD.match((el.label or "").strip()))
 
 
+_SPONSORED = re.compile(r"(^|\s)(ad|sponsored|promoted)(\s|$)", re.I)
+# a pack-size sheet's ADD buttons ("Pack of 1 500 ml ₹85"): the product is the one whose ADD was just tapped
+_PACK = re.compile(r"^\s*(pack of\s*(\d+)|\d+\s*x\s*\d|\d+(?:\.\d+)?\s*(ml|l|ltr|litre|g|gm|kg|pc|pcs)\b)", re.I)
+
+
+def _pack_choice(req: StepRequest, idx: int) -> PageElement | None:
+    """In a pack-size sheet opened by this item's ADD: the ADD for the quantity asked (pack of 1 by default)."""
+    if _since_add(req, idx) is None:
+        return None
+    packs = [e for e in req.elements if _is_add(e) and not e.disabled and _PACK.match(_product(e) or "")]
+    if len(packs) < 1:
+        return None
+    want = req.items[idx].qty
+    exact = next((e for e in packs if (m := _PACK.match(_product(e))) and m.group(2) and int(m.group(2)) == want), None)
+    return exact or packs[0]
+
+
 def _best_add(req: StepRequest, item: CartItem) -> PageElement | None:
     """The ADD of the result that best matches the item. Grocery names end with the noun ("Amul Taaza Toned
     Milk 500 ml"), so a product whose last word is the item's last word beats one that merely contains it
@@ -425,6 +442,8 @@ def _best_add(req: StepRequest, item: CartItem) -> PageElement | None:
         if not _is_add(el) or el.disabled:
             continue
         score = _same_item(_product(el), item, food)
+        if score and _SPONSORED.search(f"{el.context or ''}"):
+            score -= 0.5
         if score and food and restaurant:
             # the same dish name exists at many restaurants: only the user's restaurant is a confident match
             score = 3 if restaurant in f"{el.context or ''} {req.pageText}".lower() else 1
@@ -793,6 +812,11 @@ def fast_step(req: StepRequest) -> StepAction | None:
                     and t[0] in ("add", "confirm") and (h.result or "").startswith("clicked")), None)
     if pending and _sheet_open(req) and not (tap and tap[1] == idx and tap[0] in ("add", "confirm")):
         tap = pending   # e.g. the LLM picked a size in the sheet: still confirm it
+    pack = _pack_choice(req, idx) if tap and tap[1] == idx and tap[0] == "add" else None
+    packed = any((t := _parse_tap(h.target)) and t[0] == "add" and t[1] == idx and _PACK.match(t[2]) for h in req.history)
+    if pack is not None and not packed:
+        return StepAction(action="click", elementId=pack.id, itemIndex=idx, targetText=_tap("add", idx, _product(pack)),
+                          reason=f"pack size: {_product(pack)[:40]}", source="fast")
     if tap and tap[1] == idx and tap[0] in ("add", "confirm") and _sheet_open(req):
         product = tap[2]
         confirms = sum(1 for h in req.history if (t := _parse_tap(h.target)) and t[0] == "confirm" and t[1] == idx)
@@ -1043,7 +1067,8 @@ async def next_step(req: StepRequest) -> StepAction:
             # against the item and verified (seen on the phone: an unrelated burger wrap was tapped untagged)
             action.targetText = _tap("add", idx, _product(el))
         tap = _parse_tap(action.targetText) if action.action == "click" else None
-        if tap and tap[0] == "add" and tap[2] and not _related(tap[2], req.items[idx]):
+        if tap and tap[0] == "add" and tap[2] and not _related(tap[2], req.items[idx]) \
+                and not (_PACK.match(tap[2]) and _since_add(req, idx) is not None):
             # not that product: move on instead of waiting (seen: the same refused tap 15 times, then the run ended)
             action = _recover(req, idx) or StepAction(action="wait", itemIndex=idx, source="guard",
                                                       reason=f"not adding {tap[2][:40]}: it isn't {req.items[idx].name}")

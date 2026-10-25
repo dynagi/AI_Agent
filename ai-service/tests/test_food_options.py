@@ -284,3 +284,30 @@ def test_reading_past_orders_never_taps_into_another_store(monkeypatch):
                          elements=[E(id="n9", tag="View", text="zomato", label="unlabeled icon at bottom-right")])
     a = asyncio.run(hr.history_step(req))
     assert a.action == "history_done"
+
+
+def test_blinkit_pack_sheet_after_add_picks_pack_of_one():
+    """Seen ordering milk on Blinkit: ADD opened "Pack of 1 / Pack of 2" and those ADDs were refused as not-milk."""
+    product = "pride of cows farm cow milk 500 ml"
+    req = sb.StepRequest(mode="app", phase="cart", store="Blinkit", url="Search", step=8, items=[sb.CartItem(name="milk")],
+                         history=[sb.StepRecord(action="click", target=f"add#0@{product}", result="clicked")],
+                         elements=[E(id="a", tag="View", text="ADD", context="Pack of 1 500 ml ₹85 ₹85/bottle"),
+                                   E(id="b", tag="View", text="ADD", context="Pack of 2 500 ml ₹169 ₹84.5/bottle")])
+    a = sb.fast_step(req)
+    assert a.action == "click" and a.elementId == "a"
+
+
+def test_sponsored_listing_loses_a_tie():
+    req = sb.StepRequest(mode="app", phase="cart", store="Blinkit", url="Search", step=3, items=[sb.CartItem(name="milk")],
+                         elements=[E(id="ad", tag="View", text="ADD", context="Ad Pride of Cows Farm Cow Milk 500 ml ₹85"),
+                                   E(id="n", tag="View", text="ADD", context="Nandini Toned Milk 500 ml ₹24")])
+    assert sb._best_add(req, req.items[0]).id == "n"
+
+
+def test_pack_is_tapped_only_once():
+    req = sb.StepRequest(mode="app", phase="cart", store="Blinkit", url="Search", step=9, items=[sb.CartItem(name="milk")],
+                         history=[sb.StepRecord(action="click", target="add#0@pride of cows milk", result="clicked"),
+                                  sb.StepRecord(action="click", target="add#0@pack of 1 500 ml 85", result="clicked")],
+                         elements=[E(id="a", tag="View", text="ADD", context="Pack of 1 500 ml ₹85")])
+    a = sb.fast_step(req)
+    assert not (a and a.action == "click" and a.elementId == "a")
