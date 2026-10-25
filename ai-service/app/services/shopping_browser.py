@@ -423,11 +423,18 @@ def _pack_choice(req: StepRequest, idx: int) -> PageElement | None:
     """In a pack-size sheet opened by this item's ADD: the ADD for the quantity asked (pack of 1 by default)."""
     if _since_add(req, idx) is None:
         return None
-    packs = [e for e in req.elements if _is_add(e) and not e.disabled and _PACK.match(_product(e) or "")]
+    raw = lambda e: re.sub(r"^\s*add\s+", "", (e.context or ""), flags=re.I)   # the listing as shown, with its numbers
+    packs = [e for e in req.elements if _is_add(e) and not e.disabled and (_PACK.match(_product(e) or "") or _PACK.match(raw(e)))]
     if len(packs) < 1:
         return None
+    # one button is often listed three times, outer containers first (seen on Blinkit: tapping the outer container
+    # didn't add anything): keep the innermost, the last one listed for each pack
+    inner: dict[str, PageElement] = {}
+    for e in packs:
+        inner[raw(e)[:40]] = e
+    packs = list(inner.values())
     want = req.items[idx].qty
-    exact = next((e for e in packs if (m := _PACK.match(_product(e))) and m.group(2) and int(m.group(2)) == want), None)
+    exact = next((e for e in packs if (m := _PACK.match(raw(e))) and m.group(2) and int(m.group(2)) == want), None)
     return exact or packs[0]
 
 

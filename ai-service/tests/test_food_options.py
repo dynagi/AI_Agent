@@ -311,3 +311,14 @@ def test_pack_is_tapped_only_once():
                          elements=[E(id="a", tag="View", text="ADD", context="Pack of 1 500 ml ₹85")])
     a = sb.fast_step(req)
     assert not (a and a.action == "click" and a.elementId == "a")
+
+
+def test_pack_choice_taps_the_innermost_button():
+    """Seen on Blinkit: the 500 ml ADD is listed as two containers then the button; the container tap did nothing."""
+    req = sb.StepRequest(mode="app", phase="cart", store="Blinkit", url="Search", step=5, items=[sb.CartItem(name="milk")],
+                         history=[sb.StepRecord(action="click", target="add#0@nandini goodlife toned milk", result="clicked")],
+                         elements=[E(id="n6", tag="ViewGroup", text="ADD", context="ADD 500 ml ₹36 ₹7.20/100 ml"),
+                                   E(id="n7", tag="ViewGroup", text="ADD", context="ADD 500 ml ₹36 ₹7.20/100 ml"),
+                                   E(id="n8", tag="View", text="ADD", label="ADD", context="ADD 500 ml ₹36 ₹7.20/100 ml"),
+                                   E(id="n12", tag="View", text="ADD", label="ADD", context="ADD 1 ltr ₹65 ₹70")])
+    assert sb.fast_step(req).elementId == "n8"
