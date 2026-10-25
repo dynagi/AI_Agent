@@ -363,4 +363,4 @@ def test_cart_summary_reads_back_product_quantity_and_price():
                           items=[sb.CartItem(name="milk", status="added")],
                           history=hist + [sb.StepRecord(action="item_done", target=a.targetText, result="added")], elements=els)
     summary = sb._cart_summary(done)
-    assert "Nandini Goodlife Toned Milk" in summary and "1 × ₹36" in summary and "pay in the app" in summary
+    assert "Nandini Goodlife Toned Milk 500 ml, 1 × ₹36" in summary and "pay in the app" in summary

@@ -820,7 +820,12 @@ _TITLE_NOISE = re.compile(r"\b(add to wishlist|wishlist|image of|options?|\d+ op
 
 
 def _clean_title(text: str) -> str:
-    t = _TITLE_NOISE.sub(" ", text or "")
+    text = re.sub(r"[-]", " ", text or "")       # app icon glyphs
+    # Blinkit's own description: "Nandini Goodlife Toned Milk is available for ₹36, 500 ml" -> name + size
+    m = re.match(r"\s*(.+?)\s+is available for\b[^,]*,\s*([\d.]+\s*(?:ml|l|ltr|litre|g|gm|kg|pc|pcs))\b", text, re.I)
+    if m:
+        return f"{m.group(1).strip().title()} {m.group(2).strip()}"[:60]
+    t = _TITLE_NOISE.sub(" ", text)
     t = re.sub(r"₹\s?[\d,.]+|\s/\s?\d*\s?(ml|g|bottle)\b|\b\d+(\.\d+)?% off\b", " ", t, flags=re.I)
     return re.sub(r"\s+", " ", t).strip(" ·|,-").title()[:60]
 
