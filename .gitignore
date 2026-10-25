@@ -27,3 +27,6 @@ aura-web/android/app/src/main/assets/model-en-in/
 # local API keys for deploy tools (never commit)
 .render-key
 .uptimerobot-key
+
+# personal recordings
+*.mp4

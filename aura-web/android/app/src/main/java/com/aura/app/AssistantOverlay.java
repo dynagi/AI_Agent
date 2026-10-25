@@ -38,6 +38,7 @@ final class AssistantOverlay {
     private TextView body;
     private LinearLayout bars;
     private FrameLayout orb;
+    private OrbView orbView;
 
     AssistantOverlay(Context service, Runnable onClose) {
         this.service = service;
@@ -79,56 +80,34 @@ final class AssistantOverlay {
         panel.setGravity(Gravity.CENTER_HORIZONTAL);
 
         orb = new FrameLayout(ctx);
-        GradientDrawable glow = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[]{Color.parseColor("#F21A2B4A"), Color.parseColor("#F20B0F1A")});
-        glow.setShape(GradientDrawable.OVAL);
-        glow.setStroke(dp(3), Color.parseColor("#9900D1FF"));
-        orb.setBackground(glow);
-        orb.setElevation(dp(16));
-
-        LinearLayout inside = new LinearLayout(ctx);
-        inside.setOrientation(LinearLayout.VERTICAL);
-        inside.setGravity(Gravity.CENTER);
-        TextView name = new TextView(ctx);
-        name.setText("✨ Aura");
-        name.setTextColor(Color.parseColor("#00D1FF"));
-        name.setTextSize(17);
-        name.setTypeface(Typeface.DEFAULT_BOLD);
-        name.setGravity(Gravity.CENTER);
-        inside.addView(name);
-
-        bars = new LinearLayout(ctx);
-        bars.setGravity(Gravity.CENTER);
-        bars.setPadding(0, dp(12), 0, dp(4));
-        for (int i = 0; i < BARS; i++) {
-            View bar = new View(ctx);
-            GradientDrawable dot = new GradientDrawable();
-            dot.setColor(Color.parseColor("#00D1FF"));
-            dot.setCornerRadius(dp(4));
-            bar.setBackground(dot);
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(7), dp(8));
-            lp.setMargins(dp(4), 0, dp(4), 0);
-            bars.addView(bar, lp);
-        }
-        inside.addView(bars, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, dp(46)));
-
-        status = new TextView(ctx);
-        status.setTextColor(Color.parseColor("#CCFFFFFF"));
-        status.setTextSize(13);
-        status.setGravity(Gravity.CENTER);
-        inside.addView(status);
-        orb.addView(inside, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT, Gravity.CENTER));
+        orbView = new OrbView(ctx);
+        orb.addView(orbView, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT));
 
         TextView close = new TextView(ctx);
         close.setText("✕");
-        close.setTextColor(Color.parseColor("#99FFFFFF"));
+        close.setTextColor(Color.parseColor("#B3FFFFFF"));
         close.setTextSize(15);
-        close.setPadding(dp(10), dp(10), dp(10), dp(10));
+        close.setPadding(dp(12), dp(12), dp(12), dp(12));
         close.setOnClickListener(v -> onClose.run());
         orb.addView(close, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.END));
-        panel.addView(orb, new LinearLayout.LayoutParams(dp(200), dp(200)));
+        panel.addView(orb, new LinearLayout.LayoutParams(dp(250), dp(250)));
+
+        // the voice level drives the orb itself; the old bars are kept (unused) so the rest of the code is unchanged
+        bars = new LinearLayout(ctx);
+
+        status = new TextView(ctx);
+        status.setTextColor(Color.parseColor("#E6FFFFFF"));
+        status.setTextSize(14);
+        status.setGravity(Gravity.CENTER);
+        status.setPadding(dp(14), dp(6), dp(14), dp(6));
+        GradientDrawable pill = new GradientDrawable();
+        pill.setColor(Color.parseColor("#E60B0F1A"));
+        pill.setCornerRadius(dp(16));
+        status.setBackground(pill);
+        panel.addView(status, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT));
 
         body = new TextView(ctx);
         body.setTextColor(Color.WHITE);
@@ -145,7 +124,7 @@ final class AssistantOverlay {
         body.setBackground(card);
         body.setVisibility(View.GONE);
         LinearLayout.LayoutParams bodyLp = new LinearLayout.LayoutParams(dp(320), LinearLayout.LayoutParams.WRAP_CONTENT);
-        bodyLp.topMargin = dp(16);
+        bodyLp.topMargin = dp(10);
         panel.addView(body, bodyLp);
 
         frame.addView(panel, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT,
@@ -192,15 +171,16 @@ final class AssistantOverlay {
 
     /** Microphone level 0..1: the bars rise with the voice. */
     void setLevel(float level) {
-        if (root == null || bars.getVisibility() != View.VISIBLE) return;
+        if (root == null) return;
+        if (orbView != null) orbView.setLevel(level);
+        if (bars.getVisibility() != View.VISIBLE) return;
         float[] shape = {0.55f, 0.85f, 1f, 0.85f, 0.55f};
         for (int i = 0; i < bars.getChildCount(); i++) {
             View bar = bars.getChildAt(i);
             float target = 1f + level * 4.5f * shape[i];
             bar.animate().scaleY(target).setDuration(90).start();
         }
-        float pulse = 1f + Math.min(1f, level) * 0.08f;   // the orb breathes with the voice
-        orb.animate().scaleX(pulse).scaleY(pulse).setDuration(90).start();
+
     }
 
     void hide() {
