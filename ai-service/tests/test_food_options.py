@@ -322,3 +322,27 @@ def test_pack_choice_taps_the_innermost_button():
                                    E(id="n8", tag="View", text="ADD", label="ADD", context="ADD 500 ml ₹36 ₹7.20/100 ml"),
                                    E(id="n12", tag="View", text="ADD", label="ADD", context="ADD 1 ltr ₹65 ₹70")])
     assert sb.fast_step(req).elementId == "n8"
+
+
+def test_blinkit_word_stepper_is_proof_and_the_model_cannot_change_quantity(monkeypatch):
+    """Seen on Blinkit: the stepper reads "Decrease quantity quantity 2 Increase quantity"; it wasn't taken as proof,
+    and the model pressed "+" by itself."""
+    product = "500 ml /100 ml"
+    els = [E(id="n6", tag="ViewGroup", text="Decrease quantity quantity 1 Increase quantity",
+             context="Decrease quantity quantity 1 Increase quantity 500 ml ₹36 ₹7.20/100 ml"),
+           E(id="n10", tag="View", text="Increase quantity", label="Increase quantity",
+             context="Decrease quantity quantity 1 Increase quantity"),
+           E(id="n14", tag="View", text="ADD", label="ADD", context="ADD 1 ltr ₹65 ₹70 ₹6.50/100 ml")]
+    req = sb.StepRequest(mode="app", phase="cart", store="Blinkit", url="Search", step=5, items=[sb.CartItem(name="milk")],
+                         history=[sb.StepRecord(action="click", target="add#0@nandini goodlife toned milk", result="clicked"),
+                                  sb.StepRecord(action="click", target=f"add#0@{product}", result="clicked")], elements=els)
+    assert sb._added_proof(req, product) and sb.cart_count(req, product) == 1
+    a = sb.fast_step(req)
+    assert a.action == "item_done" and a.itemOk is True
+
+    async def chat_json(*x, **k):
+        return {"action": "click", "elementId": "n10", "reason": "Increase quantity to 2"}
+    monkeypatch.setattr(sb.llm_service, "chat_json", chat_json)
+    monkeypatch.setattr(sb, "fast_step", lambda r: None)
+    a = asyncio.run(sb.next_step(req))
+    assert not (a.action == "click" and a.elementId == "n10")

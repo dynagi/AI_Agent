@@ -499,8 +499,14 @@ def _add_gone(req: StepRequest, product: str) -> bool:
 def _added_proof(req: StepRequest, product: str) -> bool:
     """The ADD is gone AND something shows the item went in: its "+" stepper or the cart bar. An ADD that vanished
     on its own proves nothing: a customisation sheet that is still loading hides it too (seen in Zomato)."""
+    if _word_stepper_for(req, product):
+        return True     # a stepper showing a quantity in this product's card: it is in the cart
     return _add_gone(req, product) and (_plus_for(req, product) is not None or _stepper_for(req, product)
                                         or _cart_shows_items(req))
+
+
+def _word_stepper_for(req: StepRequest, product: str) -> bool:
+    return cart_count(req, product) is not None
 
 
 _STEPPER = re.compile(r"[−\-–]\s*\d+\s*\+")
@@ -508,9 +514,32 @@ _STEPPER = re.compile(r"[−\-–]\s*\d+\s*\+")
 
 def _stepper_for(req: StepRequest, product: str) -> bool:
     """A quantity stepper ("− 1 +", or the count on its own) where this product's ADD was."""
-    return any(_is_product(e, product) and (re.fullmatch(r"\d{1,2}", (e.text or "").strip())
-                                                              or _STEPPER.search(f"{e.text or ''} {e.context or ''}"))
-                             for e in req.elements)
+    if any(_is_product(e, product) and (re.fullmatch(r"\d{1,2}", (e.text or "").strip())
+                                        or _STEPPER.search(f"{e.text or ''} {e.context or ''}"))
+           for e in req.elements):
+        return True
+    # a stepper described in words ("Decrease quantity · quantity 2 · Increase quantity", seen on Blinkit), in the
+    # card of this product (its size / name is in the card's text)
+    words = [w for w in _pkey(product).split() if not w.isdigit() or len(w) > 1]
+    for e in req.elements:
+        blob = f"{e.text or ''} {e.label or ''} {e.context or ''}".lower()
+        if _WORD_STEPPER.search(blob) and words and all(w in blob for w in words[:3]):
+            return True
+    return False
+
+
+_WORD_STEPPER = re.compile(r"\b(decrease|increase) quantity\b|\bquantity\s+\d+\b")
+
+
+def cart_count(req: StepRequest, product: str) -> int | None:
+    """The quantity a word-style stepper shows for this product ("quantity 2"), when it can be read."""
+    words = [w for w in _pkey(product).split()][:3]
+    for e in req.elements:
+        blob = f"{e.text or ''} {e.label or ''} {e.context or ''}".lower()
+        m = re.search(r"\bquantity\s+(\d+)\b", blob)
+        if m and all(w in blob for w in words):
+            return int(m.group(1))
+    return None
 
 
 MAX_SETTLE_WAITS = 2  # waits for the screen to finish loading after an ADD before the LLM looks at it
@@ -1079,6 +1108,11 @@ async def next_step(req: StepRequest) -> StepAction:
             # not that product: move on instead of waiting (seen: the same refused tap 15 times, then the run ended)
             action = _recover(req, idx) or StepAction(action="wait", itemIndex=idx, source="guard",
                                                       reason=f"not adding {tap[2][:40]}: it isn't {req.items[idx].name}")
+    if action.source == "llm" and action.action == "click" and idx is not None and \
+            re.search(r"^(\+|\-|−|increase quantity|decrease quantity|add one more|remove one)\b", el_text(req, action.elementId) or "", re.I):
+        # seen on Blinkit: the model pressed "+" ("increase quantity to 2") for an item asked once
+        action = StepAction(action="wait", itemIndex=idx, source="guard",
+                            reason="not changing the quantity: you asked for " + str(req.items[idx].qty))
     if action.action == "click" and req.phase == "cart" and el_text(req, action.elementId) and _PAST_ORDER.search(el_text(req, action.elementId)):
         action = StepAction(action="wait", source="guard", reason="not opening a past order while filling the cart")
     tap = _parse_tap(action.targetText) if action.action == "click" else None
