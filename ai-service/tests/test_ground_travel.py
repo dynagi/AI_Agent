@@ -33,3 +33,9 @@ def test_chat_cannot_claim_to_open_something_it_isnt_opening():
     assert companion.honest(say, []).startswith("I haven't opened anything")
     url = companion.ConverseAction(type="open_url", args={"url": "https://www.redbus.in"})
     assert companion.honest("Opening redBus for you.", [url]) == "Opening redBus for you."
+
+
+def test_opening_with_an_order_action_is_not_called_a_false_claim():
+    """Seen while recording the demo: "Opening Zomato for paneer biryani" with an order action was replaced."""
+    order = companion.ConverseAction(type="order", args={"text": "order paneer biryani from zomato"})
+    assert companion.honest("Opening Zomato to order paneer biryani.", [order]).startswith("Opening Zomato")

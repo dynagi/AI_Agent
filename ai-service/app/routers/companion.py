@@ -226,7 +226,7 @@ def honest(say: str, actions: list[ConverseAction]) -> str:
         # there is no reminder, alarm or timer behind this assistant yet: promising one would simply not happen
         return ("I can't set reminders or alarms yet, so I won't promise that. "
                 "Your phone's clock app can do it, and I can open it for you.")
-    if _OPENING.search(say) and not any(a.type in ("open_url", "open_app", "navigate") for a in actions):
+    if _OPENING.search(say) and not any(a.type in _DOES for a in actions):   # any real action (an order opens the store)
         # seen on the phone: "Opening the flights from Delhi to Goa…" with nothing opened
         return ("I haven't opened anything. Tell me what you're looking for, like \"find a flight from Delhi to Goa "
                 "on the 27th\" or \"bus from Bangalore to Chennai\", and I'll find it.")
