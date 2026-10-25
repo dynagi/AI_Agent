@@ -589,12 +589,15 @@ public class AuraAccessibilityService extends AccessibilityService implements Ca
                 // once, and tell the server that tap leads out so it picks something else
                 returnedFromOtherApp = true;
                 offAppChecks++;
-                performGlobalAction(GLOBAL_ACTION_BACK);
+                // reopen the store app itself: "back" from the other app can land on the home screen (seen)
+                Intent store = getPackageManager().getLaunchIntentForPackage(job.appPackage);
+                if (store != null) startActivity(store.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                else performGlobalAction(GLOBAL_ACTION_BACK);
                 try {
                     JSONObject rec = new JSONObject();
                     rec.put("action", "back");
                     rec.put("target", "left-app");
-                    rec.put("result", "the last tap opened another app (" + foregroundPackage() + "); went back. Don't tap it again.");
+                    rec.put("result", "the last tap opened another app (" + foregroundPackage() + "); reopened the store. Don't tap it again.");
                     job.record(rec);
                 } catch (JSONException ignored) {
                 }

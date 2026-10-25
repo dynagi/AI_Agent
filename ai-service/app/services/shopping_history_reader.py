@@ -94,7 +94,9 @@ async def history_step(req: sb.StepRequest) -> sb.StepAction:
     # never into another app: a link to another store ("zomato ↗" on Blinkit), or a tap that already led out once
     left = any(h.target == "left-app" for h in req.history)
     other_store = el is not None and _OTHER_STORE.search(f"{el.text} {el.label or ''} {el.role or ''}")         and not re.search(re.escape(req.store.split()[0]), f"{el.text} {el.label or ''}", re.I)
-    if action.action == "click" and el is not None and (other_store or (left and "unlabeled icon at bottom" in (el.label or ""))):
+    # an unlabeled icon at the bottom is a promo or another app's link far more often than the account page (seen:
+    # Blinkit's bottom-right icon opens Zomato): not tapped while reading orders
+    if action.action == "click" and el is not None and (other_store or left or "unlabeled icon at bottom" in (el.label or "")):
         return await _finish_history(req, "the account page isn't reachable from here", saved)
     if action.action == "click" and el is not None and _NO_TOUCH.search(f"{el.text} {el.label or ''}"):
         action = sb.StepAction(action="back" if saved else "wait", reason=f"read-only: not tapping '{el.text[:30]}'",
