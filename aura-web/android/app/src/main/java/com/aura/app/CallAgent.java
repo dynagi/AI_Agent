@@ -198,6 +198,13 @@ final class CallAgent {
     @SuppressWarnings("deprecation")
     private static void hangUp(Context ctx, ActionResult.Done done) {
         if (Build.VERSION.SDK_INT < 28) return;
+        // an internet call first: WhatsApp registers its calls with Android's call system, so "is in call" is true,
+        // but endCall() only ends SIM calls (seen: it waited, the WhatsApp call went on, and AURA said it failed)
+        AudioManager audioNow = (AudioManager) ctx.getSystemService(Context.AUDIO_SERVICE);
+        if (audioNow != null && audioNow.getMode() == AudioManager.MODE_IN_COMMUNICATION) {
+            WhatsAppAgent.endCall(ctx, done);
+            return;
+        }
         final TelecomManager telecom = (TelecomManager) ctx.getSystemService(Context.TELECOM_SERVICE);
         try {
             if (telecom == null || !telecom.isInCall()) {

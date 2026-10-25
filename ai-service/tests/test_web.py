@@ -120,3 +120,14 @@ def test_what_can_you_do_lists_the_real_abilities(fake):
     r = ask("what can you do?")
     assert "Zomato" in r.say and "flights" in r.say and "websites" in r.say and r.say.endswith("?")
     assert not companion._ABILITIES_Q.search("what can you do about my sleep")   # a real question: the chat answers it
+
+
+def test_natural_ways_to_say_open_it(fake):
+    """Seen while recording: "please open the website for me for this flight" and "open it please" did nothing."""
+    links.remember("u1", [links.Link(site="Air India", url="https://www.airindia.com", label="Air India AI 811")])
+    for said in ("please open the website for me for this flight", "open it please", "book it now",
+                 "can you open the booking site"):
+        opened = links.open_request(said, "u1")
+        assert opened and opened[1] == "https://www.airindia.com", said
+    assert links.open_request("find me a flight from Delhi to Goa", "u1") is None
+    assert links.open_request("open youtube and play songs", "u1") is None

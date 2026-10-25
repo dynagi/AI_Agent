@@ -34,6 +34,19 @@ ORDINAL = re.compile(rf"\b{_OPEN_WORD}\b.{{0,12}}\b(first|1st|second|2nd|third|3
 YES = re.compile(r"^\s*(yes|yeah|yep|yup|sure|ok|okay|please do|go ahead|open it|do it|haan|ha)\b", re.I)
 
 
+_OPEN_VERB = re.compile(r"\b(open|book|go to|take me to|show me|visit)\b", re.I)
+_OPEN_WHAT = re.compile(r"\b(it|that|this|site|website|link|page|booking)\b", re.I)
+_NEW_REQUEST = re.compile(r"\bfrom\b.+\bto\b|\.(com|in|org|net|io)\b|\b(search|find|play|order)\b", re.I)
+
+
+def _OPEN_LOOSE(message: str) -> bool:
+    """Natural ways to say "open it" ("please open the website for me for this flight", "open it please"), as long
+    as the sentence is short and isn't a new request of its own (seen while recording the demo: these went unheard)."""
+    words = re.findall(r"[a-z']+", (message or "").lower())
+    return (len(words) <= 12 and bool(_OPEN_VERB.search(message or "")) and bool(_OPEN_WHAT.search(message or ""))
+            and not _NEW_REQUEST.search(message or ""))
+
+
 def safe(url: str) -> bool:
     """Only https pages: no plain http, no app schemes, no direct downloads of programs or archives."""
     return bool(re.match(r"^https://[^\s/]+\.[^\s/]+", url or "")) and not re.search(
@@ -77,7 +90,7 @@ def open_request(message: str, user_id: str) -> tuple[str, str] | None:
             return (f"I only have {len(links)} {'link' if len(links) == 1 else 'links'} from the last search. "
                     "Which one should I open?", "")
         pick = links[n - 1]
-    elif OPEN_IT.search(message) or (YES.match(message) and time.time() - _asked.get(user_id, 0) < CONFIRM_S):
+    elif OPEN_IT.search(message) or _OPEN_LOOSE(message) or (YES.match(message) and time.time() - _asked.get(user_id, 0) < CONFIRM_S):
         pick = links[0]
     if pick is None:
         return None
