@@ -131,3 +131,35 @@ def test_natural_ways_to_say_open_it(fake):
         assert opened and opened[1] == "https://www.airindia.com", said
     assert links.open_request("find me a flight from Delhi to Goa", "u1") is None
     assert links.open_request("open youtube and play songs", "u1") is None
+
+
+def test_a_question_never_gets_a_logging_action(monkeypatch):
+    """Reported: "How many glasses of water have I drunk today?" added a glass."""
+    async def chat_json(*a, **k):
+        return {"say": "You've had 3 glasses.", "do": [{"type": "log_water", "args": {"glasses": 1}}]}
+    monkeypatch.setattr(companion.llm_service, "chat_json", chat_json)
+    companion._recent.clear()
+    for q in ("How many glasses of water have I drunk today?", "maine aaj kitne glass paani piye",
+              "Did I take my medicine today"):
+        r = asyncio.run(companion.converse(companion.ConverseRequest(message=q, userId="u7")))
+        assert not any(a.type == "log_water" for a in r.do), q
+    companion._recent.clear()
+    r = asyncio.run(companion.converse(companion.ConverseRequest(message="I just drank a glass of water", userId="u7")))
+    assert any(a.type == "log_water" for a in r.do)
+
+
+def test_price_check_returns_real_listings_and_says_when_a_store_is_missing(monkeypatch):
+    async def serp(params):
+        assert params["engine"] == "google_shopping"
+        return {"shopping_results": [
+            {"title": "Amul Taaza Toned Milk 500 ml", "extracted_price": 29, "source": "BigBasket", "product_link": "https://www.bigbasket.com/x"},
+            {"title": "Amul Gold Milk 1 L", "extracted_price": 68, "source": "Amazon.in", "product_link": "https://www.amazon.in/y"},
+            {"title": "No price", "source": "X", "product_link": "https://x.com"}]}
+    monkeypatch.setattr(travel_service, "_serpapi_get", serp)
+    links.forget("u1")
+    companion._recent.clear()
+    r = ask("check the price of milk on Blinkit")
+    assert "Blinkit doesn't show up" in r.say and "₹29 at BigBasket" in r.say and not r.do
+    assert ask("open the first one").do[0].args["url"] == "https://www.bigbasket.com/x"
+    companion._recent.clear()
+    assert "₹68 at Amazon.in" in ask("check the price of milk on amazon").say

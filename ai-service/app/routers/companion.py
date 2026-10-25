@@ -17,7 +17,7 @@ import structlog
 
 from app.travel import assistant as flight_assistant
 from app.travel import ground
-from app.assistant import links, web
+from app.assistant import hinglish, links, web
 from app.services.shopping_history import shopping_history
 from app.shopping import order_history
 
@@ -76,6 +76,9 @@ What you can ask the app to do, in "do" (only when the user clearly asked or rep
 - {"type":"navigate","args":{"path":"/wellness?tab=Medicines"}}  open a screen
 - {"type":"order","args":{"text":"order toned milk"}}  they want to order groceries, food or medicine
 You cannot read their messages or contacts, make calls or payments by yourself. Never say you did something unless you put it in "do".
+A QUESTION about their records ("how many glasses have I had?", "kitne glass paani piye?", "did I take my medicine?")
+must never get a logging action: answer from the context instead. Log only when they clearly say they did it or ask
+you to add it. Reply in the user's language: English, Hindi, or Hinglish in Roman script when they speak Hinglish.
 
 If they ask what you can do, say it briefly and concretely, for example: order food or groceries from Zomato, Swiggy
 or Blinkit up to the cart (they pay), find flights with live prices and open the booking site, open redBus or train
@@ -130,25 +133,31 @@ ABILITIES = ("I can order food or groceries from Zomato, Swiggy or Blinkit up to
 
 
 async def _converse(req: ConverseRequest) -> ConverseResponse:
-    if _ABILITIES_Q.search(req.message):
+    # Hinglish / Hindi: the rules below read the English form; the AI still gets the user's own words (and answers in
+    # their language)
+    said = req.message
+    msg = hinglish.to_english(said)
+    if msg != said:
+        structlog.get_logger().info("hinglish_normalised")
+    if _ABILITIES_Q.search(msg):
         return ConverseResponse(say=ABILITIES, do=[])
     # flights have their own assistant (live search, prices per website, preferences); it answers when the message
     # is about a flight or replies to one of its questions, and stays out of everything else
     user = req.userId or "anonymous"
     # "open it", "open the second one", "the website you recommended earlier": what AURA last pointed to
-    opened = links.open_request(req.message, user)
+    opened = links.open_request(msg, user)
     if opened is not None:
         say, url = opened
         return ConverseResponse(say=say, do=[ConverseAction(type="open_url", args={"url": url})] if url else [])
     had_session = flight_assistant._session(req.userId or "anonymous") is not None
-    flight_reply = await flight_assistant.handle(req.message, req.userId or "anonymous")
+    flight_reply = await flight_assistant.handle(msg, req.userId or "anonymous")
     # which path answered (no message text): explains a flight conversation that fell through to the chat
     structlog.get_logger().info("converse_route", route="flight" if flight_reply is not None else "chat",
                                 had_flight_session=had_session, signed_in=bool(req.userId), history=len(req.history))
     if flight_reply is not None:
         return ConverseResponse(say=flight_reply[:1200], do=[])
     # trains, buses, shared cabs: no live fares exist to read, so AURA opens the right page instead of guessing
-    ground_reply = ground.handle(req.message)
+    ground_reply = ground.handle(msg)
     if isinstance(ground_reply, str):
         return ConverseResponse(say=ground_reply, do=[])
     if ground_reply is not None:
@@ -157,17 +166,17 @@ async def _converse(req: ConverseRequest) -> ConverseResponse:
         links.remember(user, [links.Link(site=ground_reply.site, url=ground_reply.url)])
         return ConverseResponse(say=ground_reply.say, do=[ConverseAction(type="open_url", args={"url": ground_reply.url})])
     # past orders: answered only from the orders AURA has read from the store apps or invoices, never guessed
-    if order_history.ASKS.search(req.message):
+    if order_history.ASKS.search(msg):
         try:
             events = await shopping_history.get_events(user) if user != "anonymous" else []
         except Exception as exc:   # the history store being down must not turn into an invented answer
             structlog.get_logger().warning("order_history_read_failed", error=str(exc)[:120])
             return ConverseResponse(say="I couldn't read your saved orders right now. Please try again in a bit.", do=[])
-        said = order_history.answer(req.message, events)
-        if said:
-            return ConverseResponse(say=said, do=[])
+        answer = order_history.answer(msg, events)
+        if answer:
+            return ConverseResponse(say=answer, do=[])
     # searching the web and opening websites, from real search results
-    web_reply = await web.handle(req.message, user)
+    web_reply = await web.handle(msg, user)
     if web_reply is not None:
         return ConverseResponse(say=web_reply.say[:1200],
                                 do=[ConverseAction(type="open_url", args={"url": web_reply.url})] if web_reply.url else [])
@@ -202,8 +211,21 @@ async def _converse(req: ConverseRequest) -> ConverseResponse:
         args = a.get("args") if isinstance(a.get("args"), dict) else {}
         if a["type"] == "navigate" and args.get("path") not in NAV_PATHS:
             continue
+        if a["type"] in WRITE_ACTIONS and is_question(req.message):
+            continue    # a question is not permission to change the records ("how many glasses have I had?")
         actions.append(ConverseAction(type=a["type"], args=args))
     return ConverseResponse(say=honest(say, actions)[:600], do=actions)
+
+
+WRITE_ACTIONS = {"log_water", "log_meal", "took_medicine", "set_mood"}
+_Q_START = re.compile(r"^\s*(?:hey aura,? |aura,? )?(how|what|when|which|did|do|does|have|has|is|am|are|was|were|can|could|should|tell me|show me|check)\b", re.I)
+_Q_WORDS = re.compile(r"\b(how (many|much|often)|kitn[aei]|kitne|kya maine|kya main|maine kya|kab|kaun|enough|so far|till now|ab tak)\b|कितन|क्या|कब", re.I)
+
+
+def is_question(text: str) -> bool:
+    """Asks rather than tells, in English, Hinglish or Hindi (same rules as the app's trackingIntent.ts)."""
+    t = (text or "").strip()
+    return t.endswith("?") or bool(_Q_START.search(t)) or bool(_Q_WORDS.search(t))
 
 
 # "I've added it to your cart", "your order is placed", "message sent": things only an action can make true

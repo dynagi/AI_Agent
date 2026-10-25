@@ -14,6 +14,7 @@ import { startQuickCart } from './extension';
 import { AuraPhone } from '../native/phone';
 import { AuraScreen } from '../native/screen';
 import { moneyByVoice } from './moneyVoice';
+import { isQuestion, trackingIntent } from './trackingIntent';
 
 /**
  * AURA's voice companion — the part that behaves like a nurse + assistant + listener.
@@ -178,6 +179,7 @@ async function shopByVoice(text: string): Promise<string | null> {
 }
 
 function answerPending(t: string, p: Pending, now: number): Handled | null {
+  if (isQuestion(t)) return null;    // "how many glasses have I had?" is not a yes to "shall we have a glass?"
   const yes = YES.test(t);
   const no = NO.test(t);
   switch (p.kind) {
@@ -264,27 +266,66 @@ async function understandLocally(raw: string, nav: Nav, now: number): Promise<Ha
   }
   if (dest) { nav(dest, { state: { ask: raw } }); return { say: dest === '/shopping' ? 'Let me set that up in shopping.' : 'Let me open your medicines.' }; }
 
-  if (/\b(drank|drink|had|finished|downed|piya|pee)\b/.test(t) && /\b(glass(?:es)?|cups?|bottles?|water|paani|pani)\b/.test(t)) {
-    const n = numberIn(t) ?? 1;
+  // water, meals, medicine, money: a question reads the records, only a clear instruction writes one
+  const track = trackingIntent(raw);
+  if (track?.mode === 'read') return { say: readRecords(track.topic, hinglish(raw)) };
+  if (track?.topic === 'water' && track.mode === 'write') {
+    const n = track.count ?? 1;
     const total = addWater(/bottle/.test(t) ? n * 4 : n);
-    return { say: total >= TARGETS.water ? `Lovely — ${total} glasses. You've reached your water goal today!` : `Nice. That's ${total} of ${TARGETS.water} glasses today.` };
+    return { say: hinglish(raw)
+      ? `Theek hai, ${n} glass add kar diya. Aaj ab tak ${total} glass, goal ${TARGETS.water} ka hai.`
+      : total >= TARGETS.water ? `Lovely — ${total} glasses. You've reached your water goal today!` : `Nice. That's ${total} of ${TARGETS.water} glasses today.` };
   }
   const meal = MEALS.find((m) => new RegExp(`\\b${m}\\b`).test(t));
-  if (meal && /\b(had|ate|eaten|finished|khaa)\w*\b/.test(t)) {
+  if (meal && track?.mode === 'write' && /\b(had|ate|eaten|finished|khaa|khaya)\w*\b/.test(t)) {
     const dish = t.match(/\b(?:had|ate|eaten)\s+(.+?)\s+(?:for|at)\s+(?:my\s+)?\w+$/)?.[1];
     logMeal(cap(meal), dish);
     return { say: `Got it — ${meal} noted${dish ? ` (${dish})` : ''}. Thanks for telling me.` };
   }
   const namedMed = medicinesStore.get().map((m) => m.name.toLowerCase()).find((n) => t.includes(n));
-  const tookWord = /\b(took|taken|swallowed|le li|had)\b/.test(t);
-  const medWord = /\b(medicine|medicines|meds?|medication|tablets?|pills?|capsules?|dose|syrup)\b/.test(t);
-  if (tookWord && (medWord || namedMed)) {
+  const tookWord = /\b(took|taken|swallowed|le li|li|had)\b/.test(t);
+  const medWord = /\b(medicine|medicines|meds?|medication|tablets?|pills?|capsules?|dose|syrup|dawai|dawa|goli)\b/.test(t);
+  if (track?.mode === 'write' && tookWord && (medWord || namedMed)) {
     const done = markMedicineTaken(namedMed, now);
     return { say: done.length ? `Good. I've marked ${done.join(' and ')} as taken.` : 'I don\'t see a dose due right now, so I haven\'t logged anything. Which medicine did you take?' };
   }
   const mood = t.match(/\bi(?: am|'m| feel|’m)\s+(.*)/)?.[1];
   if (mood && moodIn(mood)) upsertTodayLog({ mood: moodIn(mood) }); // logged; the model still answers kindly
   return null;
+}
+
+/* ---------- reading the records (never writes) ---------- */
+
+/** Spoken in Hinglish / Hindi: answer the same way. */
+function hinglish(text: string): boolean {
+  return /[\u0900-\u097F]/.test(text)
+    || /\b(maine|mera|mere|mujhe|kitn[aei]|kitne|kya|aaj|hai|hain|kar|karo|paani|pani|piya|piye|li|liya|dawai|kharcha|aur|nahi|haan)\b/i.test(text);
+}
+
+function readRecords(topic: 'water' | 'meal' | 'medicine' | 'expense', hi: boolean): string {
+  const day = today();
+  if (topic === 'water') {
+    const n = todayLog()?.water ?? 0;
+    if (hi) return n ? `Aaj aapne ${n} glass paani piya hai. Goal ${TARGETS.water} glass ka hai.` : `Aaj abhi tak koi glass log nahi hua hai. Goal ${TARGETS.water} glass ka hai.`;
+    return n ? `You've had ${n} of ${TARGETS.water} glasses of water today.` : `No water logged yet today. Your goal is ${TARGETS.water} glasses.`;
+  }
+  if (topic === 'meal') {
+    const meals = mealsStore.get().filter((m) => m.date === day && m.eaten);
+    if (!meals.length) return hi ? 'Aaj ka koi khana abhi log nahi hua hai.' : 'No meals logged yet today.';
+    const list = meals.map((m) => `${m.name}${m.dish ? ` (${m.dish})` : ''}`).join(', ');
+    return hi ? `Aaj aapne yeh log kiya hai: ${list}.` : `Today you've logged: ${list}.`;
+  }
+  if (topic === 'medicine') {
+    const taken = doseLogsStore.get().filter((d) => d.date === day && d.status === 'taken');
+    const names = [...new Set(taken.map((d) => medicinesStore.get().find((m) => m.id === d.medId)?.name).filter(Boolean))];
+    if (!taken.length) return hi ? 'Aaj abhi tak koi dawai taken mark nahi hui hai.' : 'No medicine marked as taken today yet.';
+    return hi ? `Aaj aapne ${taken.length} dose li hai: ${names.join(', ')}.` : `You've taken ${taken.length} dose${taken.length > 1 ? 's' : ''} today: ${names.join(', ')}.`;
+  }
+  const spent = transactionsStore.get().filter((x) => x.ts.slice(0, 10) === day && x.amount < 0);
+  const total = Math.round(spent.reduce((a, x) => a - x.amount, 0));
+  if (!spent.length) return hi ? 'Aaj ka koi kharcha record nahi hai.' : 'No spending recorded for today.';
+  return hi ? `Aaj aapka kharcha ₹${total.toLocaleString('en-IN')} hai, ${spent.length} payments mein.`
+    : `You've spent ₹${total.toLocaleString('en-IN')} today across ${spent.length} payment${spent.length > 1 ? 's' : ''}.`;
 }
 
 /* ---------- phone abilities ---------- */
@@ -347,9 +388,13 @@ export async function handleUtterance(text: string, nav: Nav): Promise<string> {
   return converse(t, nav, now);
 }
 
+const WRITES = new Set(['log_water', 'log_meal', 'took_medicine', 'set_mood']);
+
 async function converse(text: string, nav: Nav, now: number, pendingQuestion?: string): Promise<string> {
   const r = await aura.converse(text, { context: buildCompanionContext(), history: history.slice(0, -1), pending: pendingQuestion });
-  const override = await runActions(r.actions, nav, now);
+  // a question is not permission to change the records, whatever the model suggests
+  const actions = isQuestion(text) ? r.actions.filter((a) => !WRITES.has(a.type)) : r.actions;
+  const override = await runActions(actions, nav, now);
   const say = override ?? r.say;
   remember('aura', say);
   return say;

@@ -48,6 +48,10 @@ SEARCH = re.compile(rf"^{_FILLER}(?:search(?: the web| online| google)?(?: for)?
 NEWS = re.compile(r"\b(latest|news|today'?s|recent|this week|headlines?)\b", re.I)
 NEAR_ME = re.compile(r"\b(near me|nearby|around me|close to me|close by)\b", re.I)
 CHEAPEST = re.compile(r"\b(cheapest|lowest price|best price|best deal)\b", re.I)
+# "check the price of milk on Blinkit", "how much does milk cost online", "price of iPhone 16"
+PRICE = re.compile(rf"^{_FILLER}(?:check (?:the )?price of|what(?:'s| is) the price of|price of|"
+                   r"how much (?:does|do|is|are) (.+?) cost)\s*(.*?)(?:\s+(?:on|at|from|in)\s+([a-z][a-z ]{1,20}))?"
+                   r"(?:\s+online)?\s*[?.!]?$", re.I)
 _NOT_A_SITE = re.compile(r"^(it|that|this|that one|this one|there|the (?:first|second|third) one|first one|second one|"
                          r"site|website|link|page)$", re.I)
 
@@ -205,6 +209,12 @@ async def handle(message: str, user_id: str) -> Reply | None:
         return Reply(results=[best], say=f"The official {kind} for {subject} is {best.domain}: {best.title}. "
                                          "Shall I open it?")
 
+    pm = PRICE.match(text)
+    if pm:
+        product = (pm.group(1) or pm.group(2) or "").strip(" ?.")
+        if product:
+            return await price_reply(product, (pm.group(3) or "").strip(), user_id)
+
     m = SEARCH.match(text)
     cheapest = CHEAPEST.search(text) and re.search(r"\b(find|search|look up|what'?s)\b", text, re.I)
     if m or cheapest:
@@ -223,3 +233,65 @@ async def handle(message: str, user_id: str) -> Reply | None:
         tail = " Prices change often, so check the site before buying." if cheapest else ""
         return Reply(results=results, say=f"{summary}{tail} Say \"open the first one\" to read it.")
     return None
+
+
+
+async def prices(product: str) -> list[dict]:
+    """Real current listings with prices (Google Shopping via SerpAPI, India)."""
+    data = await travel_service._serpapi_get({"engine": "google_shopping", "q": product, "gl": "in", "hl": "en"})
+    out = []
+    for r in data.get("shopping_results") or []:
+        price = r.get("extracted_price")
+        link = r.get("product_link") or r.get("link") or ""
+        if not isinstance(price, (int, float)) or not L.safe(link):
+            continue
+        out.append({"title": (r.get("title") or "").strip(), "price": float(price), "seller": r.get("source") or "",
+                    "url": link})
+    return out
+
+
+async def price_reply(product: str, store: str, user_id: str) -> Reply:
+    """The cheapest real listings for a product, with seller and link; never an invented price. A store that isn't in
+    the listings (quick-commerce apps often aren't) is said plainly."""
+    try:
+        found = await prices(product)
+    except travel_service.TravelServiceError as exc:
+        logger.warning("price_search_failed", error=str(exc)[:160])
+        return Reply(say="I couldn't reach price search right now, so I can't tell you a price. Please try again in a bit.")
+    if not found:
+        return Reply(say=f"I didn't find any current listings with a price for {product}.")
+    # only the product asked for: every word of it in the title, and the size when one was said (seen: "amul toned
+    # milk 500ml" ranked buttermilk and a 1-litre pack as cheapest)
+    matching = [f for f in found if _matches(product, f["title"])]
+    if not matching:
+        return Reply(say=f"I found listings, but none clearly for {product}, so I won't quote a price. Try naming it "
+                         "more simply, like the brand and size.")
+    found = matching
+    note = ""
+    if store:
+        at = [f for f in found if store.lower().replace(" ", "") in f["seller"].lower().replace(" ", "")]
+        if at:
+            found = at
+        else:
+            note = (f"{store.title()} doesn't show up in the online price listings, so I can't see its price from here; "
+                    f"say \"order {product} from {store}\" and I'll check it in the app. ")
+    best = sorted(found, key=lambda f: f["price"])[:3]
+    L.remember(user_id, [L.Link(site=f["seller"] or urlparse(f["url"]).netloc, url=f["url"], label=f["title"]) for f in best])
+    rows = "; ".join(f"{f['title'][:60]} for ₹{f['price']:,.0f} at {f['seller']}" for f in best)
+    return Reply(results=[], say=f"{note}Cheapest current listings I found: {rows}. Prices change often, so check "
+                                 "before buying. Say \"open the first one\" to see it.")
+
+
+_UNIT = r"(ml|l|ltr|litre|liter|g|gm|kg|pc|pcs)"
+
+
+def _matches(product: str, title: str) -> bool:
+    t = re.sub(r"[^a-z0-9 ]", " ", title.lower())
+    t_compact = t.replace(" ", "")
+    for size in re.findall(rf"(\d+(?:\.\d+)?)\s*{_UNIT}\b", product.lower()):
+        if not re.search(rf"{size[0]}\s*{size[1]}", t):
+            return False
+    words = [w for w in re.findall(r"[a-z]+", re.sub(rf"\d+(?:\.\d+)?\s*{_UNIT}\b", " ", product.lower()))
+             if len(w) >= 3 and w not in {"online", "price", "the", "and", "for", "pack"}]
+    # whole words, so "milk" isn't found inside "buttermilk" ... but "butter milk" (two words) still is
+    return all(re.search(rf"\b{w}\b", t) for w in words) and not ("butter" not in product.lower() and "butter" in t)
