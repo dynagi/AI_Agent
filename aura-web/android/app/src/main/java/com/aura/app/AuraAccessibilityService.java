@@ -65,6 +65,7 @@ public class AuraAccessibilityService extends AccessibilityService implements Ca
             "com.mobikwik_new", "com.freecharge.android", "com.dreamplug.androidapp", "in.amazon.mShop.android.shopping.pay"));
     private static final int MAX_ELEMENTS = 180;
     private static final int MAX_OFF_APP_CHECKS = 6;
+    private boolean returnedFromOtherApp;   // went back once after a tap opened another app (reset per job)
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final ExecutorService network = Executors.newSingleThreadExecutor();
@@ -498,6 +499,7 @@ public class AuraAccessibilityService extends AccessibilityService implements Ca
             paused = false;
             inFlight = false;
             offAppChecks = 0;
+            returnedFromOtherApp = false;
             networkFailures = 0;
             nodes.clear();
             showOverlay(("history".equals(job.phase) ? "Opening your " + job.store + " orders…" : "Opening " + job.store + "…"));
@@ -582,6 +584,21 @@ public class AuraAccessibilityService extends AccessibilityService implements Ca
                 String why = "Your phone is locked. Unlock it, then tap Continue and I'll fill your " + job.store + " cart.";
                 WakeWordService.notice("Your phone is locked. Unlock it and I'll fill your " + job.store + " cart.");
                 job.needUser(why);
+            } else if (offAppChecks == 0 && !returnedFromOtherApp && foregroundPackage() != null) {
+                // AURA's own tap left the store app (seen: Blinkit's "zomato" promo button opened Zomato): go back
+                // once, and tell the server that tap leads out so it picks something else
+                returnedFromOtherApp = true;
+                offAppChecks++;
+                performGlobalAction(GLOBAL_ACTION_BACK);
+                try {
+                    JSONObject rec = new JSONObject();
+                    rec.put("action", "back");
+                    rec.put("target", "left-app");
+                    rec.put("result", "the last tap opened another app (" + foregroundPackage() + "); went back. Don't tap it again.");
+                    job.record(rec);
+                } catch (JSONException ignored) {
+                }
+                scheduleStep(1800);
             } else if (++offAppChecks > MAX_OFF_APP_CHECKS) {
                 job.needUser("Bring the " + job.store + " app back to the front, then tap Continue.");
             } else {

@@ -23,6 +23,7 @@ from app.services.shopping_memory import (SYNC_MARKER, imported_events, product_
 logger = structlog.get_logger()
 CAUGHT_UP_AFTER = 2
 FULL_SYNC = 20  # historyLimit from "Learn from all my stores": always reads that deep (duplicates are skipped)  # already-stored orders in a row on a re-sync: everything older was read before
+_OTHER_STORE = re.compile(r"\b(zomato|swiggy|blinkit|zepto|instamart|bigbasket|amazon|flipkart|district|hyperpure)\b", re.I)
 _NO_TOUCH = re.compile(r"\b(re-?order|repeat|order again|buy again|add|pay|help|cancel|rate|return|chat|support|share)\b", re.I)
 
 _HISTORY_PROMPT = """You operate the {store} Android app on the user's phone to READ their past orders, so AURA learns
@@ -90,6 +91,11 @@ async def history_step(req: sb.StepRequest) -> sb.StepAction:
                            source="llm")
     sb._normalise_id(action, req)
     el = sb._element(req, action.elementId)
+    # never into another app: a link to another store ("zomato ↗" on Blinkit), or a tap that already led out once
+    left = any(h.target == "left-app" for h in req.history)
+    other_store = el is not None and _OTHER_STORE.search(f"{el.text} {el.label or ''} {el.role or ''}")         and not re.search(re.escape(req.store.split()[0]), f"{el.text} {el.label or ''}", re.I)
+    if action.action == "click" and el is not None and (other_store or (left and "unlabeled icon at bottom" in (el.label or ""))):
+        return await _finish_history(req, "the account page isn't reachable from here", saved)
     if action.action == "click" and el is not None and _NO_TOUCH.search(f"{el.text} {el.label or ''}"):
         action = sb.StepAction(action="back" if saved else "wait", reason=f"read-only: not tapping '{el.text[:30]}'",
                                ordersSaved=saved, ordersKnown=known, source="guard")

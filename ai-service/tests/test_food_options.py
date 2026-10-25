@@ -267,3 +267,20 @@ def test_wishlist_is_not_an_add_and_a_refused_tap_recovers(monkeypatch):
     replies.append({"action": "click", "elementId": "n2", "reason": "add"})
     a = asyncio.run(sb.next_step(req))
     assert a.action == "scroll" and "milk" in a.reason          # moves on, doesn't wait forever
+
+
+def test_reading_past_orders_never_taps_into_another_store(monkeypatch):
+    """Seen ordering milk on Blinkit: the "zomato" promo button was tapped while looking for the orders page."""
+    from app.services import shopping_history_reader as hr
+
+    async def chat_json(*a, **k):
+        return {"action": "click", "elementId": "n9", "reason": "account"}
+    monkeypatch.setattr(sb.llm_service, "chat_json", chat_json)
+
+    async def finish(req, reason, saved=0):
+        return sb.StepAction(action="history_done", reason=reason, source="fast")
+    monkeypatch.setattr(hr, "_finish_history", finish)
+    req = sb.StepRequest(mode="app", phase="history", store="Blinkit", url="Home", step=1, items=[sb.CartItem(name="milk")],
+                         elements=[E(id="n9", tag="View", text="zomato", label="unlabeled icon at bottom-right")])
+    a = asyncio.run(hr.history_step(req))
+    assert a.action == "history_done"
