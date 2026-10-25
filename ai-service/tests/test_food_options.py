@@ -346,3 +346,21 @@ def test_blinkit_word_stepper_is_proof_and_the_model_cannot_change_quantity(monk
     monkeypatch.setattr(sb, "fast_step", lambda r: None)
     a = asyncio.run(sb.next_step(req))
     assert not (a.action == "click" and a.elementId == "n10")
+
+
+def test_cart_summary_reads_back_product_quantity_and_price():
+    """The final message names what is actually in the cart, with the quantity and price the app shows."""
+    els = [E(id="t", tag="ViewGroup", text="Nandini Goodlife Toned Milk is available for ₹36, 500 ml"),
+           E(id="n6", tag="ViewGroup", text="Decrease quantity quantity 1 Increase quantity",
+             context="Decrease quantity quantity 1 Increase quantity 500 ml ₹36 ₹7.20/100 ml")]
+    hist = [sb.StepRecord(action="click", target="add#0@add to wishlist image of 500 ml options nandini goodlife toned milk", result="clicked"),
+            sb.StepRecord(action="click", target="add#0@500 ml /100 ml", result="clicked")]
+    req = sb.StepRequest(mode="app", phase="cart", store="Blinkit", url="Search", step=4, items=[sb.CartItem(name="milk")],
+                         history=hist, elements=els)
+    a = sb.fast_step(req)
+    assert a.action == "item_done" and a.targetText.startswith("added#0@") and a.targetText.endswith("|1|36")
+    done = sb.StepRequest(mode="app", phase="cart", store="Blinkit", url="Search", step=5,
+                          items=[sb.CartItem(name="milk", status="added")],
+                          history=hist + [sb.StepRecord(action="item_done", target=a.targetText, result="added")], elements=els)
+    summary = sb._cart_summary(done)
+    assert "Nandini Goodlife Toned Milk" in summary and "1 × ₹36" in summary and "pay in the app" in summary

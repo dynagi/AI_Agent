@@ -816,8 +816,65 @@ def _last(req: StepRequest, action: str | None = None):
     return None
 
 
+_TITLE_NOISE = re.compile(r"\b(add to wishlist|wishlist|image of|options?|\d+ options|ad|gourmet|customi[sz]able|add)\b", re.I)
+
+
+def _clean_title(text: str) -> str:
+    t = _TITLE_NOISE.sub(" ", text or "")
+    t = re.sub(r"₹\s?[\d,.]+|\s/\s?\d*\s?(ml|g|bottle)\b|\b\d+(\.\d+)?% off\b", " ", t, flags=re.I)
+    return re.sub(r"\s+", " ", t).strip(" ·|,-").title()[:60]
+
+
+def _added_note(req: StepRequest, idx: int) -> str:
+    """What was added, as the screen shows it: "added#0@<product>|<quantity>|<price>" (empty fields when unknown)."""
+    taps = [t for h in req.history if (t := _parse_tap(h.target)) and t[0] == "add" and t[1] == idx and not _PACK.match(t[2])]
+    product = taps[0][2] if taps else ""
+    title = ""
+    for e in req.elements:          # the full name from a card / sheet title that contains the tapped product's words
+        words = [w for w in re.findall(r"[a-z]{4,}", product.lower()) if w not in {"wishlist", "image", "options", "gourmet"}][:2]
+        txt = f"{e.text or ''} {e.label or ''}"
+        if words and all(w in txt.lower() for w in words) and "₹" in txt and len(txt) < 120:
+            title = txt
+            break
+    title = _clean_title(title or product)
+    qty = None
+    price = None
+    for e in req.elements:
+        blob = f"{e.text or ''} {e.label or ''} {e.context or ''}"
+        m = re.search(r"\bquantity\s+(\d+)\b", blob, re.I)
+        if m:
+            qty = int(m.group(1))
+            pm = re.search(r"₹\s?([\d,]+(?:\.\d+)?)", blob)
+            if pm:
+                price = pm.group(1).replace(",", "")
+            break
+    if price is None and title:
+        pm = re.search(r"₹\s?([\d,]+(?:\.\d+)?)", next((f"{e.text} {e.label or ''}" for e in req.elements
+                                                          if title.lower()[:15] in f"{e.text} {e.label or ''}".lower()), ""))
+        price = pm.group(1).replace(",", "") if pm else None
+    return f"added#{idx}@{title}|{qty or ''}|{price or ''}"
+
+
 def _cart_summary(req: StepRequest) -> str:
     """What the cart screen actually shows, item by item (the user sees this as the final message)."""
+    notes = {}
+    for h in req.history:
+        m = re.match(r"^added#(\d+)@(.*)\|(\d*)\|([\d.]*)$", h.target or "")
+        if m:
+            notes[int(m.group(1))] = (m.group(2), m.group(3), m.group(4))
+    if notes and all(it.status == "added" for it in req.items):
+        parts, total, known = [], 0.0, True
+        for i, it in enumerate(req.items):
+            title, qty, price = notes.get(i, (it.name, "", ""))
+            q = int(qty) if qty else it.qty
+            if price:
+                total += q * float(price)
+                parts.append(f"{title or it.name}, {q} × ₹{float(price):g}")
+            else:
+                known = False
+                parts.append(f"{title or it.name}, {q}")
+        tail = f" Items total ₹{total:g} before delivery fees and taxes." if known else ""
+        return "In your cart: " + "; ".join(parts) + "." + tail + " Check the cart and pay in the app when you're ready."
     names = [_product(e) for e in req.elements] + [_product(PageElement(id="t", context=req.pageText))]
     seen = [it.name for it in req.items if it.status == "added" or any(_same_item(n, it) for n in names if n)]
     missing = [it.name for it in req.items if it.name not in seen]
@@ -863,7 +920,7 @@ def fast_step(req: StepRequest) -> StepAction | None:
                           reason="customisation sheet: confirm it with the choices already selected", source="fast")
     if tap and tap[1] == idx and tap[0] == "confirm":
         if tap[2] and (_added_proof(req, tap[2]) or _cart_shows_items(req)):
-            return StepAction(action="item_done", itemIndex=idx, itemOk=True, reason=f"{item.name} is in the cart",
+            return StepAction(action="item_done", itemIndex=idx, itemOk=True, reason=f"{item.name} is in the cart", targetText=_added_note(req, idx),
                               source="fast")
         return None   # sheet closed but no sign of the item in the cart: the LLM looks at the screen
     if tap and tap[1] == idx and tap[0] == "add":
@@ -881,7 +938,7 @@ def fast_step(req: StepRequest) -> StepAction | None:
                                       targetText=_tap("plus", idx, product),
                                       reason=f"set {item.name} quantity to {item.qty}", source="fast")
                 return None  # added, but the "+" isn't recognisable: let the LLM finish the quantity
-            return StepAction(action="item_done", itemIndex=idx, itemOk=True, reason=f"{item.name} is in the cart",
+            return StepAction(action="item_done", itemIndex=idx, itemOk=True, reason=f"{item.name} is in the cart", targetText=_added_note(req, idx),
                               source="fast")
         if product and not _visible(req, product) and _settle_waits(req, idx) < MAX_SETTLE_WAITS:
             return StepAction(action="wait", itemIndex=idx, targetText=_tap("settle", idx, product),
@@ -894,7 +951,7 @@ def fast_step(req: StepRequest) -> StepAction | None:
         return StepAction(action="item_done", itemIndex=idx, itemOk=True,
                           reason=f"{item.name} x{item.qty} is in the cart", source="fast")
     if _added_ok(req, idx):  # added earlier (then something else happened, e.g. a popup was closed)
-        return StepAction(action="item_done", itemIndex=idx, itemOk=True, reason=f"{item.name} is in the cart",
+        return StepAction(action="item_done", itemIndex=idx, itemOk=True, reason=f"{item.name} is in the cart", targetText=_added_note(req, idx),
                           source="fast")
 
     # 2. the matching product is on screen: add it

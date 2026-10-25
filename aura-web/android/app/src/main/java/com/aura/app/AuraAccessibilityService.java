@@ -659,6 +659,13 @@ public class AuraAccessibilityService extends AccessibilityService implements Ca
                     return;
                 }
                 case "item_done":
+                    if (action.has("targetText")) {   // "added#0@Nandini Goodlife Toned Milk 500 ml|1|36": for the read-back
+                        JSONObject rec = new JSONObject();
+                        rec.put("action", type);
+                        rec.put("target", action.optString("targetText"));
+                        rec.put("result", action.optBoolean("itemOk", true) ? "added" : "not added");
+                        job.record(rec);
+                    }
                     job.markItem(action.optInt("itemIndex", -1), action.optBoolean("itemOk", true), reason);
                     scheduleStep(300);
                     return;
