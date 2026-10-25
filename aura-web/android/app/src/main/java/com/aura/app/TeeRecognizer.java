@@ -33,10 +33,12 @@ final class TeeRecognizer extends Recognizer {
     }
 
     /** Starts hearing one free-form command from the shared stream, for at most `maxMs`. */
-    void listenForCommand(long maxMs, Heard heard) throws IOException {
+    void listenForCommand(long maxMs, String grammar, Heard heard) throws IOException {
         synchronized (lock) {
             stopCommand();
-            command = new Recognizer(model, rate);
+            // with the words AURA's commands use, the small offline model is far more accurate than free-form
+            // (seen: free-form turned "open YouTube" into something else while the screen recorder ran)
+            command = grammar != null ? new Recognizer(model, rate, grammar) : new Recognizer(model, rate);
             this.heard = heard;
             until = System.currentTimeMillis() + maxMs;
         }
@@ -77,7 +79,7 @@ final class TeeRecognizer extends Recognizer {
 
     static String textOf(String json) {
         try {
-            return new JSONObject(json).optString("text", "").trim();
+            return new JSONObject(json).optString("text", "").replace("[unk]", " ").replaceAll("\\s+", " ").trim();
         } catch (Exception e) {
             return "";
         }

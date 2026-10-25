@@ -51,6 +51,17 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
             + "\"hang up\", \"end the call\", \"end call\", \"cut the call\", \"cut call\", \"disconnect\", \"[unk]\"]";
     private long callArmedUntil;
     private boolean quiet;   // this session runs during an internet call: replies on screen, not aloud
+    private boolean ownStream;   // the command is heard from AURA's own microphone stream (the mic is shared)
+
+    /** Another app is recording as well as AURA's wake listener (screen recorder, voice notes, a call). */
+    private boolean micShared() {
+        if (audioManager == null || Build.VERSION.SDK_INT < 24) return false;
+        try {
+            return audioManager.getActiveRecordingConfigurations().size() > (speech != null ? 1 : 0);
+        } catch (Exception e) {
+            return false;
+        }
+    }
 
     private boolean internetCall() {
         return audioManager != null && audioManager.getMode() == android.media.AudioManager.MODE_IN_COMMUNICATION;
@@ -389,9 +400,13 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
         // an internet call (Meet, WhatsApp): Android still lets AURA hear (checked: its stream is not silenced), so
         // commands work; answers are shown, not spoken, so the people on the call don't hear AURA
         quiet = inCall();
-        if (quiet) Log.i(TAG, "session during an internet call: commands from the same microphone stream, answers on screen");
+        // another app records too (a call, the screen recorder): the phone's speech recognition then only gets
+        // silence (seen: NO_SPEECH_DETECTED while screen recording), so the command comes from AURA's own stream
+        ownStream = quiet || micShared();
+        if (ownStream) Log.i(TAG, "session with the microphone shared (" + (quiet ? "call" : "another app records")
+                + "): command from AURA's own stream" + (quiet ? ", answers on screen" : ""));
         inSession = true;
-        if (!quiet) {
+        if (!ownStream) {
             paused = true;          // free the microphone for the command recogniser
             releaseMic();
         }
@@ -547,18 +562,46 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
     }
 
     private static final long CALL_COMMAND_MS = 9000;
+    private String commandGrammar;
+
+    /** Debug builds may log what the shared-stream recogniser heard (to tune it); release builds never do. */
+    private static boolean DEBUG_BUILD;
+
+    /** The words AURA's commands are made of, plus the app names on this phone, as a Vosk word grammar. */
+    private String commandGrammar() {
+        if (commandGrammar != null) return commandGrammar;
+        DEBUG_BUILD = (getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+        java.util.LinkedHashSet<String> words = new java.util.LinkedHashSet<>(java.util.Arrays.asList((
+                "open close play pause resume stop next previous skip song songs music video videos on in the a an of to "
+                + "from for with and me my search find show what is are can you do tell latest news today weather "
+                + "youtube you tube spotify whatsapp what app chrome google maps camera settings instagram gallery photos "
+                + "blinkit zomato swiggy zepto amazon flipkart instamart order buy add cart pizza biryani burger milk "
+                + "call message send say hang up end volume up down go back home ad ads first second third one "
+                + "flight flights bus buses train trains cab from to tomorrow yes no okay cancel website site "
+                + "kesariya arijit singh hindi english latest new").split(" ")));
+        for (String label : ActionRouter.vocabulary(this)) {
+            for (String w : label.toLowerCase(java.util.Locale.ROOT).split("[^a-z]+")) {
+                if (w.length() >= 2) words.add(w);
+            }
+        }
+        StringBuilder g = new StringBuilder("[");
+        for (String w : words) g.append('"').append(w).append("\", ");
+        commandGrammar = g.append("\"[unk]\"]").toString();
+        return commandGrammar;
+    }
 
     private void listenForCommand() {
-        if (quiet && tee != null && speech != null) {
+        if (ownStream && tee != null && speech != null) {
             // on a call: the phone's speech recognition only gets silence, so the command comes from AURA's own
             // still-open stream (recognised on the phone by the offline Vosk model)
-            overlay.setStatus("Listening… (on a call)", true);
+            overlay.setStatus(quiet ? "Listening… (on a call)" : "Listening…", true);
             overlay.setBody("", false);
             final int id = requestId;
             try {
-                tee.listenForCommand(CALL_COMMAND_MS, text -> ui.post(() -> {
+                tee.listenForCommand(CALL_COMMAND_MS, commandGrammar(), text -> ui.post(() -> {
                     if (!inSession || requestId != id) return;
-                    Log.i(TAG, "command heard on the call stream: " + (text.isEmpty() ? "nothing" : text.split("\\s+").length + " words"));
+                    Log.i(TAG, "command heard on the shared stream: " + (text.isEmpty() ? "nothing"
+                            : DEBUG_BUILD ? "\"" + text + "\"" : text.split("\\s+").length + " words"));
                     onDone(text, text.isEmpty() ? "I didn't catch that. Say \"Hey Aura\" and try again." : null);
                 }));
             } catch (Exception e) {
@@ -775,6 +818,7 @@ public class WakeWordService extends Service implements RecognitionListener, Spe
     private void endSession(long delayMs) {
         AuraWakePlugin.handOverDone();
         quiet = false;
+        ownStream = false;
         if (tee != null) tee.cancelCommand();
         if (cartAnswer != null) {   // closed (✕) before answering the cart's question
             CartAnswer done = cartAnswer;
