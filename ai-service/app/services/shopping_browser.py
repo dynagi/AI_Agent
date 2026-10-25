@@ -108,6 +108,11 @@ def store_key(name: str | None) -> str | None:
     return next((k for k, v in STORES.items() if v["name"].lower() == canon), None)
 
 
+# search links that open the store's app straight on the results (checked on the phone): no home screen, popups or
+# promo buttons to get past (seen on Blinkit: a leftover category sheet and a "zomato" button derailed the search)
+APP_SEARCH_LINKS = {"blinkit": "https://blinkit.com/s/?q={q}"}
+
+
 def search_url(key: str | None, query: str) -> str | None:
     store = STORES.get(key or "")
     if not store:
@@ -334,6 +339,11 @@ def guard(action: StepAction, req: StepRequest) -> StepAction:
         if SENSITIVE_INPUT.search(blob) or (el.type or "").lower() == "password":
             return StepAction(action="need_user", message="This page wants a login/OTP/payment detail. "
                               "Please enter it yourself, then tap Continue.", reason="sensitive input", source="guard")
+    if action.action == "open_link" and req.mode == "app":
+        key = store_key(req.store)
+        if key not in APP_SEARCH_LINKS or not (action.url or "").startswith(APP_SEARCH_LINKS[key].split("{")[0]):
+            return StepAction(action="wait", reason="only the store's own search link", source="guard")
+        return action
     if action.action == "navigate" and req.mode == "app":
         return StepAction(action="wait", reason="no URLs inside an app; use its search bar", source="guard")
     if action.action == "navigate":
@@ -838,6 +848,12 @@ def fast_step(req: StepRequest) -> StepAction | None:
     # retyping wipes the results/suggestions that are loading). What to do with the results is the LLM's call.
     typed_now = any(h.action == "type" and (h.target or "") == f"search@{item.name}" for h in req.history[-6:])
     if req.mode == "app":
+        key = store_key(req.store)
+        link_opened = any((h.target or "").startswith(f"link@{item.name}") for h in req.history)
+        if key in APP_SEARCH_LINKS and not link_opened:
+            url = APP_SEARCH_LINKS[key].format(q=quote_plus(item.name))
+            return StepAction(action="open_link", url=url, itemIndex=idx, targetText=f"link@{item.name}",
+                              reason=f"open {req.store} search for {item.name}", source="fast")
         box = next((e for e in req.elements if e.editable and not e.disabled), None)
         box_text = (box.text or "").lower() if box else ""
         already = item.name.lower() in box_text and "search" not in box_text  # (rotating hints say "Search for ...")

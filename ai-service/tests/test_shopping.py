@@ -303,10 +303,11 @@ def test_app_mode_heuristic_searches_then_adds(monkeypatch):
     async def down(messages, **kw):
         raise LLMServiceError("down")
     monkeypatch.setattr(sb.llm_service, "chat_json", down)
-    home = _req([{"id": "n0", "tag": "TextView", "text": 'Search "milk"'}], items=[sb.CartItem(name="bread", qty=2)])
+    # a store without an app search link (Blinkit opens its results by link instead): the search-bar flow
+    home = _req([{"id": "n0", "tag": "TextView", "text": 'Search "milk"'}], items=[sb.CartItem(name="bread", qty=2)], store="Zepto")
     home.mode = "app"
     assert asyncio.run(sb.next_step(home)).model_dump(include={"action", "elementId"}) == {"action": "click", "elementId": "n0"}
-    search = _req([{"id": "n0", "tag": "EditText", "editable": True}], items=[sb.CartItem(name="bread", qty=2)])
+    search = _req([{"id": "n0", "tag": "EditText", "editable": True}], items=[sb.CartItem(name="bread", qty=2)], store="Zepto")
     search.mode = "app"
     a = asyncio.run(sb.next_step(search))
     assert (a.action, a.elementId, a.text, a.submit) == ("type", "n0", "bread", True)
@@ -377,19 +378,19 @@ def test_zepto_run_curd_then_milk():
                 "context": "₹54 ₹80 Country Delight | Ghar Jaisa Dahi Cup 1 pc (400 g) ADD"},
                {"id": "n7", "tag": "ViewGroup", "text": "ADD", "context": "Nandini Curd Pouch, 1 pack (200 g), 4.8, (18k) ADD"},
                {"id": "n8", "tag": "ViewGroup", "text": "ADD", "context": "Milk Bikis Biscuits 200 g ₹30 ADD"}]
-    req = _req(results, items=items)
+    req = _req(results, items=items, store="Zepto")
     req.mode = "app"
     a = sb.fast_step(req)
     assert (a.action, a.elementId) == ("click", "n2") and a.targetText.startswith("add#0@country delight")
     # after the tap the Dahi Cup shows a stepper instead of ADD
     after = [{"id": "n2", "tag": "ViewGroup", "text": "1", "context": "₹54 ₹80 Country Delight | Ghar Jaisa Dahi Cup 1 pc (400 g) − 1 +"}] + results[1:]
-    req = _req(after, items=items, history=_hist(("click", a.targetText, "clicked")))
+    req = _req(after, items=items, store="Zepto", history=_hist(("click", a.targetText, "clicked")))
     req.mode = "app"
     a = sb.fast_step(req)
     assert (a.action, a.itemIndex, a.itemOk) == ("item_done", 0, True)
     # milk is next: the curd tap must not count for milk, and Milk Bikis is not milk
     items[0].status = "added"
-    req = _req(after + [{"id": "n9", "tag": "EditText", "editable": True, "text": "curd"}], items=items,
+    req = _req(after + [{"id": "n9", "tag": "EditText", "editable": True, "text": "curd"}], items=items, store="Zepto",
                history=_hist(("click", "add#0@country delight ghar jaisa dahi cup 1 pc (400 g)", "clicked")))
     req.mode = "app"
     a = sb.fast_step(req)
@@ -1159,3 +1160,17 @@ def test_sheet_is_confirmed_even_after_the_ai_picked_a_size_in_it():
                          history=hist, elements=sheet)
     a = sb.fast_step(req)
     assert a.action == "click" and a.elementId == "n31" and a.targetText == f"confirm#0@{product}"
+
+
+def test_blinkit_opens_its_search_results_by_link():
+    """Seen on the phone: Blinkit reopened on a leftover category sheet and its "zomato" button derailed the search.
+    Its own search link opens the app straight on the results."""
+    req = _req([], items=[sb.CartItem(name="amul milk")])
+    req.mode = "app"
+    a = sb.fast_step(req)
+    assert a.action == "open_link" and a.url == "https://blinkit.com/s/?q=amul+milk"
+    assert sb.guard(a, req).action == "open_link"
+    evil = sb.StepAction(action="open_link", url="https://evil.example.com/x")
+    assert sb.guard(evil, req).action == "wait"                          # only the store's own search link
+    req.history = [sb.StepRecord(action="open_link", target="link@amul milk", result="opened")]
+    assert sb.fast_step(req) is None or sb.fast_step(req).action != "open_link"   # opened once, then it works the page

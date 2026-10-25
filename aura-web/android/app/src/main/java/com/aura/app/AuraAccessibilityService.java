@@ -965,6 +965,19 @@ public class AuraAccessibilityService extends AccessibilityService implements Ca
             case "home":
                 performGlobalAction(GLOBAL_ACTION_HOME);
                 return "home";
+            case "open_link": {
+                // the store's own search link, opened in the store's app (seen: Blinkit opens straight on the results)
+                String url = a.optString("url", "");
+                String pkg = running ? CartJobBridge.getInstance().appPackage : null;
+                if (!url.startsWith("https://") || pkg == null) return "refused (link)";
+                try {
+                    startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)).setPackage(pkg)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                    return "opened";
+                } catch (Exception e) {
+                    return "link failed";
+                }
+            }
             default:
                 return "waited";
         }
