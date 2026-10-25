@@ -264,8 +264,9 @@ def test_open_it_opens_the_recommended_flights_booking_site(fake):
     ask = lambda m: asyncio.run(companion.converse(companion.ConverseRequest(message=m, userId="u1")))
     ask("flight Bangalore to Chandigarh on the 31st, direct, morning, fastest")
     r = ask("open it")
-    assert r.say.startswith("Opening EaseMyTrip for Air India AI 811") and r.do[0].type == "open_url"
-    assert r.do[0].args["url"] == "https://www.easemytrip.com/flights.html"
+    # the search with route and date filled in, not a site's home page (seen: it opened on Delhi)
+    assert r.say.startswith("Opening Google Flights for Air India AI 811") and r.do[0].type == "open_url"
+    assert r.do[0].args["url"].startswith("https://www.google.com/travel/flights") and "route and date" in r.say
 
 
 def test_a_new_flight_request_starts_fresh_even_for_the_same_trip(fake):

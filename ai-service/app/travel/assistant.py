@@ -307,7 +307,8 @@ SITE_URLS = [("air india express", "https://www.airindiaexpress.com"), ("air ind
              ("yatra", "https://www.yatra.com/flights"), ("ly.com", "https://www.ly.com"),
              ("skyticket", "https://skyticket.com")]
 NEW_TRIP = re.compile(r"\bfrom\b.+\bto\b", re.I)
-BOOK_NOTE = "Find that flight there to book it; booking and payment are up to you."
+BOOK_NOTE = ("Your route and date are filled in; tap that flight to see each site's price and book there. "
+             "Booking and payment are up to you.")
 
 
 def site_url(site: str, result: live.SearchResult | None) -> str:
@@ -321,6 +322,11 @@ def site_url(site: str, result: live.SearchResult | None) -> str:
 
 
 def _keep_link(s: Session, f: live.Flight, sites: list) -> None:
+    # the search itself (route and date filled in, this flight listed with every site's price), not a site's home page
+    # (seen while recording: the airline's home page opened with Delhi as the starting point)
+    if s.result is not None and s.result.google_flights_url and links.safe(s.result.google_flights_url):
+        s.link = ("Google Flights", s.result.google_flights_url, f"{f.airline} {f.flight_numbers}")
+        return
     site = sites[0].site if sites else "Google Flights"
     s.link = (site, site_url(site if sites else "", s.result), f"{f.airline} {f.flight_numbers}")
 
