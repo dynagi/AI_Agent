@@ -152,6 +152,8 @@ async def _converse(req: ConverseRequest) -> ConverseResponse:
     if isinstance(ground_reply, str):
         return ConverseResponse(say=ground_reply, do=[])
     if ground_reply is not None:
+        if ground_reply.site == "cab search":
+            ground_reply = await ground.cab_options(ground_reply)   # a real cab site's page and its listed fare
         links.remember(user, [links.Link(site=ground_reply.site, url=ground_reply.url)])
         return ConverseResponse(say=ground_reply.say, do=[ConverseAction(type="open_url", args={"url": ground_reply.url})])
     # past orders: answered only from the orders AURA has read from the store apps or invoices, never guessed

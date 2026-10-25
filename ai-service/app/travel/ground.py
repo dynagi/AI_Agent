@@ -21,6 +21,8 @@ class Reply:
     say: str
     url: str
     site: str
+    route: tuple[str, str] | None = None   # (from, to), for looking up real cab options
+    when: str = ""
 
 
 def mode_of(text: str) -> str | None:
@@ -144,10 +146,60 @@ def handle(text: str) -> Reply | str | None:
         # no cab site opens with the route filled in (checked: two gave "page not found", one opened blank), so the
         # search for this exact route, which lists the operators that serve it
         url = "https://www.google.com/search?q=" + quote_plus(f"outstation cab from {frm} to {to}")
-        return Reply(site="cab search", url=url,
+        return Reply(site="cab search", url=url, route=(frm, to), when=on,
                      say=f"I can't see live cab fares, so I won't guess them. Opening cab options from {frm} to {to}{on}: "
                          "it lists the operators on this route with their prices. Booking and payment are up to you there.")
     url = "https://www.google.com/search?q=" + quote_plus(f"shared cab from {frm} to {to}")
     return Reply(site="shared cab search", url=url,
                  say=f"Shared cabs run only on some routes, and I can't see their seats or fares. Opening a search for "
                      f"shared cabs from {frm} to {to}{on}, so you can see who serves this route.")
+
+
+# cab-booking sites whose own route pages show up in search (a page from a search result, so it really exists)
+CAB_SITES = ("gozocabs.com", "makemytrip.com", "savaari.com", "olacabs.com", "uber.com", "mytaxiindia.com",
+             "quickride.in", "goibibo.com", "cleartrip.com", "bharattaxi.com", "intrcity.com", "zoomcar.com",
+             "airportcabs", "taxi", "cab")
+_FARE = re.compile(r"(?:₹|rs\.?|inr)\s?([\d,]{2,7})(?:\s*/\s*-?)?(\s*(?:/|per)\s*km)?", re.I)
+
+
+def _site_name(domain: str) -> str:
+    known = {"gozocabs.com": "Gozo Cabs", "makemytrip.com": "MakeMyTrip", "savaari.com": "Savaari",
+             "olacabs.com": "Ola", "uber.com": "Uber", "goibibo.com": "Goibibo", "cleartrip.com": "Cleartrip",
+             "mytaxiindia.com": "MyTaxiIndia", "quickride.in": "Quick Ride", "bharattaxi.com": "Bharat Taxi",
+             "intrcity.com": "IntrCity"}
+    return next((v for k, v in known.items() if k in domain), domain)
+
+
+async def cab_options(reply: Reply) -> Reply:
+    """A cab-booking site's own page for the route, found by a real web search, with the starting fare that site's
+    listing shows. Falls back to the search page when nothing usable is found or search is down."""
+    from app.assistant import web
+    from app.services import travel_service
+    if not reply.route:
+        return reply
+    frm, to = reply.route
+    try:
+        results = await web.search(f"{frm} to {to} cab fare one way", num=8)
+    except travel_service.TravelServiceError:
+        return reply
+    cabs = [r for r in results if any(k in r.domain.lower() for k in CAB_SITES)]
+    if not cabs:
+        return reply
+    with_fare = []
+    for r in cabs:
+        m = _FARE.search(f"{r.title} {r.snippet}")
+        if m:
+            amount = int(m.group(1).replace(",", ""))
+            if amount >= 5:
+                with_fare.append((r, amount, bool(m.group(2))))
+    pick, amount, per_km = with_fare[0] if with_fare else (cabs[0], None, False)
+    name = _site_name(pick.domain)
+    if amount is None:
+        fare = "I couldn't find a fare in its listing, so check the price there"
+    elif per_km:
+        fare = f"its listing shows fares from ₹{amount:,} per km"
+    else:
+        fare = f"its listing shows fares from ₹{amount:,}"
+    return Reply(site=name, url=pick.url, route=reply.route, when=reply.when,
+                 say=f"For a cab from {frm} to {to}{reply.when}: {name}, {fare}. That comes from their search listing, "
+                     f"so the final fare is on their site. Opening {name}; booking and payment are up to you.")

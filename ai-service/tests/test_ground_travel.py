@@ -61,3 +61,28 @@ def test_plain_cab_between_cities_and_route_without_from():
     assert ground.handle("book a cab to the airport") is None          # a local ride: not this helper
     assert ground.handle("I want to go to work") is None
     assert "/NDLS/AII/" in ground.handle("trains delhi to ajmer tomorrow").url
+
+
+def test_cab_opens_a_real_cab_site_with_its_listed_fare(monkeypatch):
+    """Asked while recording: open a particular site and say the basic fare (from the site's own listing)."""
+    from app.assistant import web
+    from app.services import travel_service
+
+    async def fake(params):
+        return {"organic_results": [
+            {"title": "Delhi to Ajmer taxi - Wikipedia style blog", "link": "https://blog.example.com/x"},
+            {"title": "Delhi to Ajmer Cab | One Way Taxi from ₹3,499", "link": "https://www.gozocabs.com/book-taxi/delhi-ajmer",
+             "snippet": "Book Delhi to Ajmer one way cab..."},
+            {"title": "Delhi Ajmer cabs", "link": "https://www.makemytrip.com/cabs/x", "snippet": "Rs 11/km"}]}
+    monkeypatch.setattr(travel_service, "_serpapi_get", fake)
+    web._cache.clear()
+    r = asyncio.run(ground.cab_options(ground.handle("find delhi to ajmer cab for me")))
+    assert r.url == "https://www.gozocabs.com/book-taxi/delhi-ajmer" and r.site == "Gozo Cabs"
+    assert "₹3,499" in r.say and "search listing" in r.say
+
+    async def down(params):
+        raise travel_service.TravelServiceError("429")
+    monkeypatch.setattr(travel_service, "_serpapi_get", down)
+    web._cache.clear()
+    r = asyncio.run(ground.cab_options(ground.handle("find delhi to ajmer cab for me")))
+    assert "google.com/search" in r.url                               # search down: the plain search, no made-up fare
