@@ -340,4 +340,26 @@ public class AssistantLogicTest {
         assertTrue(WhatsAppLabels.isReturnToCall("Tap to return to call"));
         assertFalse(WhatsAppLabels.isReturnToCall("Calls"));
     }
+
+    @Test
+    public void hinglishPhoneCommands() {
+        assertEquals("play CarryMinati latest video on youtube", Hinglish.toEnglish("YouTube par CarryMinati ka latest video chala"));
+        assertEquals("play kesariya on spotify", Hinglish.toEnglish("Spotify par kesariya chalao"));
+        assertEquals("send a whatsapp message to Sarvesh saying main raste mein hoon",
+                Hinglish.toEnglish("WhatsApp par Sarvesh ko message bhej ki main raste mein hoon"));
+        assertEquals("call Sarvesh", Hinglish.toEnglish("Sarvesh ko call karo"));
+        assertEquals("whatsapp video call Sarvesh", Hinglish.toEnglish("Sarvesh ko whatsapp video call karo"));
+        assertEquals("open Spotify", Hinglish.toEnglish("Spotify kholo"));
+        assertEquals("pause", Hinglish.toEnglish("gaana band karo"));
+        assertEquals("next song", Hinglish.toEnglish("agla gaana chalao"));
+        assertEquals("volume up", Hinglish.toEnglish("awaaz badhao"));
+        assertEquals("hang up", Hinglish.toEnglish("call kaat do"));
+        assertEquals("close YouTube", Hinglish.toEnglish("YouTube band karo"));
+        // English and unrelated sentences are left alone
+        assertEquals("play kesariya on youtube", Hinglish.toEnglish("play kesariya on youtube"));
+        assertEquals("maine aaj kitne glass paani piye", Hinglish.toEnglish("maine aaj kitne glass paani piye"));
+        // the rewritten forms are commands the phone understands
+        assertEquals(Intents.Type.WA_MESSAGE, Intents.parse(Hinglish.toEnglish("WhatsApp par Sarvesh ko message bhej ki main raste mein hoon")).type);
+        assertEquals(Intents.Type.CALL, Intents.parse(Hinglish.toEnglish("Sarvesh ko call karo")).type);
+    }
 }

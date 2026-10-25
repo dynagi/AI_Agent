@@ -43,7 +43,9 @@ final class ActionRouter {
     static boolean handle(Context ctx, String raw, ActionResult.Done out) {
         long now = SystemClock.elapsedRealtime();
         cx.touch(now);
-        String t = Intents.tidy(raw);
+        // Hinglish phone commands ("YouTube par X chala", "Sarvesh ko call karo") read as their English form; a
+        // pending question's answer is taken as said ("haan", a name, a message)
+        String t = Intents.tidy(cx.pending == null ? Hinglish.toEnglish(raw) : raw);
         if (t.isEmpty()) return false;
         ActionResult.Done done = recording(out);
         ConversationContext.Pending waiting = cx.takePending(now);
@@ -114,6 +116,10 @@ final class ActionRouter {
             "AURA", "Hey AURA", "Spotify", "YouTube", "WhatsApp", "Zepto", "Blinkit", "Swiggy", "Zomato", "Instamart",
             "BigBasket", "Amazon", "Flipkart", "SIM 1", "SIM 2", "hang up", "pause", "resume", "next song",
             "previous song", "volume up", "volume down", "video call", "WhatsApp call", "the latest one", "the second one",
+            // products and Hinglish words AURA hears often (seen: product names and "paani" misheard)
+            "milk", "doodh", "Amul", "Mother Dairy", "Nandini", "paneer", "curd", "dahi", "bread", "eggs", "butter",
+            "atta", "Maggi", "biryani", "pizza", "dosa", "paani", "glass", "kitne", "order kar do", "chala do",
+            "message bhej", "CarryMinati", "Kesariya", "hang up", "open it",
     };
 
     /** What the recogniser should expect to hear: AURA's command words and the names of the apps on this phone. */
@@ -132,6 +138,23 @@ final class ActionRouter {
             }
         } catch (Exception e) {
             // the fixed words are enough
+        }
+        // the user's own contacts (only with the contacts permission they already gave for calls / WhatsApp): Indian
+        // names are where the recogniser fails most
+        try {
+            if (Permissions.has(ctx, android.Manifest.permission.READ_CONTACTS)) {
+                try (android.database.Cursor c = ctx.getContentResolver().query(
+                        android.provider.ContactsContract.Contacts.CONTENT_URI,
+                        new String[]{android.provider.ContactsContract.Contacts.DISPLAY_NAME_PRIMARY},
+                        null, null, android.provider.ContactsContract.Contacts.TIMES_CONTACTED + " DESC")) {
+                    while (c != null && c.moveToNext() && words.size() < 200) {
+                        String name = c.getString(0);
+                        if (name != null && name.length() >= 3 && name.length() <= 30 && !words.contains(name)) words.add(name);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // contacts unavailable: app names and command words still help
         }
         return words;
     }

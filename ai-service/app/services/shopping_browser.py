@@ -394,7 +394,13 @@ def _same_item(product: str, item: CartItem, food: bool = False) -> int:
     return 1
 
 
+# not the cart: wishlists, favourites, notes (seen on Blinkit: "Add to wishlist" was taken for an ADD button)
+_NOT_CART = re.compile(r"\b(wish ?list|favou?rites?|save for later|note|address|review|photo|to list)\b", re.I)
+
+
 def _is_add(el: PageElement) -> bool:
+    if _NOT_CART.search(f"{el.text or ''} {el.label or ''}"):
+        return False
     return bool(_ADD.match((el.text or "").strip()) or _ADD.match((el.label or "").strip()))
 
 
@@ -851,6 +857,25 @@ def fast_step(req: StepRequest) -> StepAction | None:
     return None
 
 
+def _recover(req: StepRequest, idx: int) -> StepAction | None:
+    """After a refused tap: search for the item again, or scroll to find it, rather than repeat the same step."""
+    item = req.items[idx]
+    box = next((e for e in req.elements if e.editable and not e.disabled), None)
+    if box is not None and item.name.lower() not in (box.text or "").lower():
+        return StepAction(action="type", elementId=box.id, text=item.name, submit=True, itemIndex=idx,
+                          targetText=f"search@{item.name}", reason=f"search {item.name} again", source="guard")
+    search = next((e for e in req.elements if re.search(r"\bsearch\b", f"{e.text} {e.label or ''} {e.role or ''}", re.I)), None)
+    recent = [h.target for h in req.history[-3:]]
+    if box is None and search is not None and "open-search" not in recent:
+        return StepAction(action="click", elementId=search.id, itemIndex=idx, targetText="open-search",
+                          reason="open search again", source="guard")
+    lists = [e for e in req.elements if e.scrollable]
+    if sum(1 for h in req.history[-8:] if h.action == "scroll") < 3:
+        return StepAction(action="scroll", elementId=lists[0].id if lists else None, itemIndex=idx,
+                          reason=f"scrolling to find {item.name}", source="guard")
+    return None
+
+
 def heuristic_step(req: StepRequest) -> StepAction:
     """When the LLM is unavailable: the fast path, else wait a little, else give up on the item."""
     action = fast_step(req)
@@ -997,14 +1022,15 @@ async def next_step(req: StepRequest) -> StepAction:
         el = _element(req, action.elementId) if action.action == "click" else None
         el_txt = f"{el.text or el.label or ''}" if el is not None else ""
         if el is not None and not _parse_tap(action.targetText) and re.match(r"^\s*add\b", el_txt, re.I) \
-                and not _SHEET_CONFIRM.match(el_txt):
+                and not _SHEET_CONFIRM.match(el_txt) and not _NOT_CART.search(el_txt):
             # an "ADD" with an icon or price on it ("ADD +", "ADD ₹59") is still an ADD: tagged, so it is checked
             # against the item and verified (seen on the phone: an unrelated burger wrap was tapped untagged)
             action.targetText = _tap("add", idx, _product(el))
         tap = _parse_tap(action.targetText) if action.action == "click" else None
         if tap and tap[0] == "add" and tap[2] and not _related(tap[2], req.items[idx]):
-            action = StepAction(action="wait", itemIndex=idx, source="guard",
-                                reason=f"not adding {tap[2][:40]}: it isn't {req.items[idx].name}")
+            # not that product: move on instead of waiting (seen: the same refused tap 15 times, then the run ended)
+            action = _recover(req, idx) or StepAction(action="wait", itemIndex=idx, source="guard",
+                                                      reason=f"not adding {tap[2][:40]}: it isn't {req.items[idx].name}")
     if action.action == "click" and req.phase == "cart" and el_text(req, action.elementId) and _PAST_ORDER.search(el_text(req, action.elementId)):
         action = StepAction(action="wait", source="guard", reason="not opening a past order while filling the cart")
     tap = _parse_tap(action.targetText) if action.action == "click" else None

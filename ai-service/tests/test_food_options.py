@@ -196,7 +196,7 @@ def test_ai_cannot_add_an_unrelated_suggestion_or_confirm_a_sheet_itself(monkeyp
                                    E(id="n2", tag="Button", text="Add item ₹234 ₹139")])
     replies.append({"action": "click", "elementId": "n1", "reason": "add it"})
     a = asyncio.run(sb.next_step(req))
-    assert a.action == "wait" and "isn't" in a.reason
+    assert a.action != "click"                                   # refused: not tapped (recovers by searching or scrolling)
     replies.append({"action": "click", "elementId": "n2", "reason": "add item"})
     a = asyncio.run(sb.next_step(req))
     assert a.action == "wait" and a.targetText.startswith("add#0@") and "asking you" in a.reason
@@ -223,7 +223,7 @@ def test_an_add_button_with_an_icon_or_price_is_still_checked(monkeypatch):
                                    E(id="n27", tag="Button", text="ADD ₹", context="Mysore Masala Dosa ₹110")])
     replies.append({"action": "click", "elementId": "n26", "reason": "add it"})
     a = asyncio.run(sb.next_step(req))
-    assert a.action == "wait" and "isn't masala dosa" in a.reason
+    assert a.action != "click" or a.elementId != "n26"           # the burger wrap is not tapped
     replies.append({"action": "click", "elementId": "n27", "reason": "add the dosa"})
     a = asyncio.run(sb.next_step(req))
     assert a.action == "click" and a.targetText.startswith("add#0@") and "dosa" in a.targetText
@@ -249,3 +249,21 @@ def test_dish_name_drops_app_icon_glyphs():
     """Seen on the phone: "Pick the options for Veg Fried Rice  in Zomato"."""
     assert sb._dish("veg fried rice  customisable") == "Veg Fried Rice"
     assert sb._dish("paneer tikka (8 pcs) · customisable") == "Paneer Tikka (8 Pcs)"
+
+
+def test_wishlist_is_not_an_add_and_a_refused_tap_recovers(monkeypatch):
+    """Seen ordering milk on Blinkit: "Add to wishlist" was treated as ADD, refused 15 times, and the run ended."""
+    assert not sb._is_add(E(id="w", tag="View", text="Add to wishlist image of 85 g options"))
+    replies = []
+
+    async def chat_json(*a, **k):
+        return replies.pop(0)
+    monkeypatch.setattr(sb.llm_service, "chat_json", chat_json)
+    monkeypatch.setattr(sb, "fast_step", lambda r: None)
+    req = sb.StepRequest(mode="app", phase="cart", store="Blinkit", url="Search", step=4, items=[sb.CartItem(name="milk")],
+                         elements=[E(id="n1", tag="EditText", text="milk", editable=True),
+                                   E(id="n2", tag="View", text="ADD", context="Lays Chips 52 g ₹20"),
+                                   E(id="n3", tag="ScrollView", scrollable=True)])
+    replies.append({"action": "click", "elementId": "n2", "reason": "add"})
+    a = asyncio.run(sb.next_step(req))
+    assert a.action == "scroll" and "milk" in a.reason          # moves on, doesn't wait forever

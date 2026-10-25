@@ -15,6 +15,7 @@ import { AuraPhone } from '../native/phone';
 import { AuraScreen } from '../native/screen';
 import { moneyByVoice } from './moneyVoice';
 import { isQuestion, trackingIntent } from './trackingIntent';
+import { hinglishToEnglish } from './hinglish';
 
 /**
  * AURA's voice companion — the part that behaves like a nurse + assistant + listener.
@@ -258,13 +259,14 @@ async function understandLocally(raw: string, nav: Nav, now: number): Promise<Ha
     return { say: 'Opening the dialer. Press call when you\'re ready.' };
   }
 
-  const dest = orderDestination(raw);
+  const orderText = hinglishToEnglish(raw);          // "mere liye doodh order kar de" -> "order milk"
+  const dest = orderDestination(orderText);
   if (dest === '/shopping') {
     // by voice, the whole exchange stays spoken: the assistant asks, the user answers, the cart starts
-    const spoken = await shopByVoice(raw);
+    const spoken = await shopByVoice(orderText);
     if (spoken !== null) return { say: spoken };
   }
-  if (dest) { nav(dest, { state: { ask: raw } }); return { say: dest === '/shopping' ? 'Let me set that up in shopping.' : 'Let me open your medicines.' }; }
+  if (dest) { nav(dest, { state: { ask: orderText } }); return { say: dest === '/shopping' ? 'Let me set that up in shopping.' : 'Let me open your medicines.' }; }
 
   // water, meals, medicine, money: a question reads the records, only a clear instruction writes one
   const track = trackingIntent(raw);
